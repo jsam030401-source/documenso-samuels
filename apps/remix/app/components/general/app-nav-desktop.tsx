@@ -54,6 +54,10 @@ export const AppNavDesktop = ({ className, setIsCommandMenuOpen, ...props }: App
         href: `/t/${teamUrl}/templates`,
         label: msg`Templates`,
       },
+      {
+        href: `/t/${teamUrl}/applications`,
+        label: msg`Rental Apps`,
+      },
     ];
   }, [currentTeam, organisations]);
 

@@ -37,3 +37,38 @@ export const getChecklistItemFileForParticipant = async ({
 
   return { item, documentData };
 };
+
+export type GetChecklistItemFileForTeamOptions = {
+  teamId: number;
+  checklistItemId: string;
+};
+
+/**
+ * Admin variant: resolve a checklist item's file scoped to the team that owns
+ * the application. The caller must already have verified the requesting user is
+ * a member of `teamId` (e.g. via getTeamByUrl). `null` if not in this team / no
+ * upload.
+ */
+export const getChecklistItemFileForTeam = async ({ teamId, checklistItemId }: GetChecklistItemFileForTeamOptions) => {
+  const item = await prisma.checklistItem.findFirst({
+    where: {
+      id: checklistItemId,
+      participant: { application: { teamId } },
+    },
+    select: { id: true, type: true, label: true, documentDataId: true },
+  });
+
+  if (!item || !item.documentDataId) {
+    return null;
+  }
+
+  const documentData = await prisma.documentData.findUnique({
+    where: { id: item.documentDataId },
+  });
+
+  if (!documentData) {
+    return null;
+  }
+
+  return { item, documentData };
+};

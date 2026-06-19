@@ -5,6 +5,7 @@ import { Input } from '@documenso/ui/primitives/input';
 import { Label } from '@documenso/ui/primitives/label';
 import { useToast } from '@documenso/ui/primitives/use-toast';
 import { useState } from 'react';
+import { Link, useParams } from 'react-router';
 
 export function meta() {
   return [{ title: 'Rental Applications' }];
@@ -12,6 +13,8 @@ export function meta() {
 
 export default function ApplicationsPage() {
   const { toast } = useToast();
+  const params = useParams();
+  const teamUrl = params.teamUrl ?? '';
 
   const { data: applications = [], isLoading, refetch } = trpc.application.getApplications.useQuery();
 
@@ -141,14 +144,19 @@ export default function ApplicationsPage() {
               <CardContent className="space-y-3 py-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-medium">
+                    <Link to={`/t/${teamUrl}/applications/${application.id}`} className="font-medium hover:underline">
                       {application.title || application.unitAddress || 'Untitled application'}
-                    </p>
+                    </Link>
                     <p className="text-muted-foreground text-xs">
                       {application.status} · {application.participantCount} participant
                       {application.participantCount === 1 ? '' : 's'}
                     </p>
                   </div>
+                  <Link to={`/t/${teamUrl}/applications/${application.id}`}>
+                    <Button type="button" variant="outline" size="sm">
+                      Manage
+                    </Button>
+                  </Link>
                 </div>
 
                 <div className="flex items-center gap-2">

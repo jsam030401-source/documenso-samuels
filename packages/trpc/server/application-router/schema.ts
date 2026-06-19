@@ -11,6 +11,12 @@ export const ZCreateApplicationRequestSchema = z.object({
 
 export type TCreateApplicationRequest = z.infer<typeof ZCreateApplicationRequestSchema>;
 
+export const ZGetApplicationRequestSchema = z.object({
+  id: z.string(),
+});
+
+export type TGetApplicationRequest = z.infer<typeof ZGetApplicationRequestSchema>;
+
 export const ZSetApplicationTemplatesRequestSchema = z.object({
   applicationId: z.string(),
   applicantTemplateId: z.string().nullable().optional(),

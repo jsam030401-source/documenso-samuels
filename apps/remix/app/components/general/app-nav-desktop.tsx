@@ -56,7 +56,10 @@ export const AppNavDesktop = ({ className, setIsCommandMenuOpen, ...props }: App
       },
       {
         href: `/t/${teamUrl}/applications`,
-        label: msg`Rental Apps`,
+        // Plain string (not a lingui macro): this label isn't in the compiled
+        // catalog, and prod builds strip macro source text — so a macro would
+        // render its hashed id. A literal always renders correctly.
+        label: 'Rental Apps',
       },
     ];
   }, [currentTeam, organisations]);
@@ -83,7 +86,7 @@ export const AppNavDesktop = ({ className, setIsCommandMenuOpen, ...props }: App
                     },
                   )}
                 >
-                  {_(label)}
+                  {typeof label === 'string' ? label : _(label)}
                 </Link>
               ))}
             </motion.div>

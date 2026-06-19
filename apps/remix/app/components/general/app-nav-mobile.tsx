@@ -68,7 +68,8 @@ export const AppNavMobile = ({ isMenuOpen, onMenuOpenChange }: AppNavMobileProps
       },
       {
         href: `/t/${teamUrl}/applications`,
-        text: t`Rental Apps`,
+        // Plain string (not a lingui macro) — see app-nav-desktop for why.
+        text: 'Rental Apps',
       },
       {
         href: '/inbox',

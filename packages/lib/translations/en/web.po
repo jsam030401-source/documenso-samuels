@@ -14481,3 +14481,11 @@ msgstr "This document has been canceled by the owner and is no longer available 
 #: apps/remix/app/components/dialogs/envelope-cancel-dialog.tsx
 msgid "The signing window for {displayName} on document \"{documentName}\" has expired. You can resend the document to extend their deadline or cancel the document."
 msgstr "The signing window for {displayName} on document \"{documentName}\" has expired. You can resend the document to extend their deadline or cancel the document."
+
+#: apps/remix/app/components/dialogs/envelopes-bulk-cancel-dialog.tsx
+msgid "{0, plural, one {# document cancelled.} other {# documents cancelled.}} {1, plural, one {# document could not be cancelled.} other {# documents could not be cancelled.}}"
+msgstr "{0, plural, one {# document canceled.} other {# documents canceled.}} {1, plural, one {# document could not be canceled.} other {# documents could not be canceled.}}"
+
+#: apps/remix/app/components/dialogs/envelopes-bulk-cancel-dialog.tsx
+msgid "{0, plural, one {# document has been cancelled.} other {# documents have been cancelled.}}"
+msgstr "{0, plural, one {# document has been canceled.} other {# documents have been canceled.}}"

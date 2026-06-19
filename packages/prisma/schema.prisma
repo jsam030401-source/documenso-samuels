@@ -1272,3 +1272,115 @@ model RateLimit {
   @@id([key, action, bucket])
   @@index([createdAt])
 }
+
+// ---------------------------------------------------------------------------
+// Rental-application module (Samuels Systems).
+//
+// Layered beside Documenso's core: the Documenso-owned columns below
+// (teamId / ownerUserId / folderId / documentDataId) are intentionally plain
+// scalar foreign keys WITHOUT Prisma relations, so the core User/Team/Folder/
+// DocumentData models are never edited and upstream merges stay painless.
+// ---------------------------------------------------------------------------
+
+enum RentalApplicationStatus {
+  OPEN
+  IN_PROGRESS
+  READY_FOR_REVIEW
+  SUBMITTED
+  APPROVED
+  DENIED
+  WITHDRAWN
+}
+
+enum ParticipantRole {
+  APPLICANT
+  COSIGNER
+}
+
+enum ChecklistItemType {
+  ID
+  INCOME
+  CREDIT_REPORT
+  PROOF_OF_DEPOSIT
+  OTHER
+}
+
+enum ChecklistItemStatus {
+  PENDING
+  UPLOADED
+  APPROVED
+  REJECTED
+}
+
+model RentalApplication {
+  id          String  @id @default(cuid())
+  teamId      Int // Documenso Team (scalar FK, no relation)
+  ownerUserId Int // Documenso User that owns/provisions envelopes for this application
+  folderId    String? // Documenso Folder grouping the generated signing envelopes
+
+  slug   String                  @unique // nanoid(8) — the one share link
+  title  String?
+  status RentalApplicationStatus @default(OPEN)
+
+  unitAddress String?
+  rent        Decimal?
+  moveInDate  DateTime?
+
+  applicantTemplateId String? // Envelope.secondaryId (type = TEMPLATE)
+  cosignerTemplateId  String?
+
+  participants ApplicationParticipant[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([teamId])
+}
+
+model ApplicationParticipant {
+  id          String @id @default(cuid())
+  accessToken String @unique @default(cuid()) // portal link / cookie bearer (NOT the db id)
+
+  applicationId String
+  application   RentalApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  role      ParticipantRole
+  isStudent Boolean         @default(false)
+
+  // Co-signer -> the applicant they support.
+  linkedToId String?
+  linkedTo   ApplicationParticipant?  @relation("CosignerLink", fields: [linkedToId], references: [id], onDelete: SetNull)
+  cosigners  ApplicationParticipant[] @relation("CosignerLink")
+
+  name  String
+  email String
+  phone String
+
+  recipientIds Int[] @default([]) // Documenso Recipient ids for this person's forms-to-sign
+
+  checklist ChecklistItem[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([applicationId, email])
+  @@index([applicationId])
+  @@index([linkedToId])
+}
+
+model ChecklistItem {
+  id String @id @default(cuid())
+
+  participantId String
+  participant   ApplicationParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  type   ChecklistItemType
+  label  String?
+  status ChecklistItemStatus @default(PENDING)
+
+  documentDataId String? // Documenso DocumentData id (scalar FK, no relation)
+  notes          String?
+
+  createdAt DateTime @default(now())
+
+  @@index([participantId])
+}

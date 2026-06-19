@@ -1,0 +1,20 @@
+import { z } from 'zod';
+
+export const ZCreateApplicationRequestSchema = z.object({
+  title: z.string().trim().max(200).optional(),
+  unitAddress: z.string().trim().max(500).optional(),
+  rent: z.number().positive().optional(),
+  moveInDate: z.string().datetime().optional(),
+  applicantTemplateId: z.string().optional(),
+  cosignerTemplateId: z.string().optional(),
+});
+
+export type TCreateApplicationRequest = z.infer<typeof ZCreateApplicationRequestSchema>;
+
+export const ZSetApplicationTemplatesRequestSchema = z.object({
+  applicationId: z.string(),
+  applicantTemplateId: z.string().nullable().optional(),
+  cosignerTemplateId: z.string().nullable().optional(),
+});
+
+export type TSetApplicationTemplatesRequest = z.infer<typeof ZSetApplicationTemplatesRequestSchema>;

@@ -14405,3 +14405,79 @@ msgstr "Your verification code:"
 #: apps/remix/app/routes/_authenticated+/o.$orgUrl.settings.sso.tsx
 msgid "your-domain.com another-domain.com"
 msgstr "your-domain.com another-domain.com"
+
+#: apps/remix/app/components/general/document/document-status.tsx
+msgid "Cancelled"
+msgstr "Canceled"
+
+#: apps/remix/app/components/general/document/document-status.tsx
+msgid "Document cancelled"
+msgstr "Document canceled"
+
+#: apps/remix/app/components/tables/documents-table-empty-state.tsx
+msgid "Nothing cancelled"
+msgstr "Nothing canceled"
+
+#: apps/remix/app/components/tables/documents-table-empty-state.tsx
+msgid "There are no cancelled documents. Documents you cancel will remain here as a record that they were distributed."
+msgstr "There are no canceled documents. Documents you cancel will remain here as a record that they were distributed."
+
+#: apps/remix/app/components/dialogs/envelope-cancel-dialog.tsx
+msgid "Add an optional reason for cancelling this document"
+msgstr "Add an optional reason for canceling this document"
+
+#: apps/remix/app/components/dialogs/envelopes-bulk-cancel-dialog.tsx
+msgid "Add an optional reason for cancelling these documents"
+msgstr "Add an optional reason for canceling these documents"
+
+#: apps/remix/app/components/dialogs/envelopes-bulk-cancel-dialog.tsx
+msgid "An error occurred while cancelling the documents."
+msgstr "An error occurred while canceling the documents."
+
+#: apps/remix/app/components/dialogs/envelopes-bulk-cancel-dialog.tsx
+msgid "Documents cancelled"
+msgstr "Documents canceled"
+
+#: apps/remix/app/components/dialogs/envelopes-bulk-cancel-dialog.tsx
+msgid "Documents partially cancelled"
+msgstr "Documents partially canceled"
+
+#: apps/remix/app/components/dialogs/envelopes-bulk-cancel-dialog.tsx
+msgid "Only pending documents you have permission to manage will be cancelled."
+msgstr "Only pending documents you have permission to manage will be canceled."
+
+#: apps/remix/app/components/dialogs/envelope-cancel-dialog.tsx
+msgid "Recipients will be notified that the document was cancelled"
+msgstr "Recipients will be notified that the document was canceled"
+
+#: apps/remix/app/components/dialogs/envelope-cancel-dialog.tsx
+msgid "This document could not be cancelled at this time. Please try again."
+msgstr "This document could not be canceled at this time. Please try again."
+
+#: apps/remix/app/components/dialogs/envelope-cancel-dialog.tsx
+msgid "This document has been cancelled"
+msgstr "This document has been canceled"
+
+#: apps/remix/app/components/dialogs/envelope-cancel-dialog.tsx
+msgid "You cancelled the document"
+msgstr "You canceled the document"
+
+#: apps/remix/app/components/dialogs/envelope-cancel-dialog.tsx
+msgid "\"{title}\" has been successfully cancelled"
+msgstr "\"{title}\" has been successfully canceled"
+
+#: packages/lib/server-only/document/cancel-document.ts
+msgid "{user} cancelled the document"
+msgstr "{user} canceled the document"
+
+#: packages/email/templates/document-cancel.tsx
+msgid "{inviterName} has cancelled the document {documentName}, you don't need to sign it anymore."
+msgstr "{inviterName} has canceled the document {documentName}, you don't need to sign it anymore."
+
+#: apps/remix/app/routes/_recipient+/sign.$token+/_index.tsx
+msgid "This document has been cancelled by the owner and is no longer available for others to sign."
+msgstr "This document has been canceled by the owner and is no longer available for others to sign."
+
+#: apps/remix/app/components/dialogs/envelope-cancel-dialog.tsx
+msgid "The signing window for {displayName} on document \"{documentName}\" has expired. You can resend the document to extend their deadline or cancel the document."
+msgstr "The signing window for {displayName} on document \"{documentName}\" has expired. You can resend the document to extend their deadline or cancel the document."

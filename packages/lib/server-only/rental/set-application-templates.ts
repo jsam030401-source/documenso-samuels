@@ -38,12 +38,23 @@ export const setApplicationTemplates = async ({
   const assertTeamTemplate = async (envelopeId: string) => {
     const template = await prisma.envelope.findFirst({
       where: { id: envelopeId, type: EnvelopeType.TEMPLATE, teamId },
-      select: { id: true },
+      select: { _count: { select: { recipients: true } } },
     });
 
     if (!template) {
       throw new AppError(AppErrorCode.NOT_FOUND, {
         message: 'Template not found in this team',
+      });
+    }
+
+    // The participant becomes the template's signer, so the rental flow only
+    // supports single-signer templates. Reject anything else loudly here rather
+    // than silently mapping the participant onto the wrong recipient later.
+    if (template._count.recipients !== 1) {
+      throw new AppError(AppErrorCode.INVALID_BODY, {
+        message:
+          'A rental form template must have exactly one signer (the applicant or co-signer). ' +
+          `This template has ${template._count.recipients} recipients.`,
       });
     }
   };

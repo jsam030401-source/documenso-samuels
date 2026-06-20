@@ -81,17 +81,17 @@ export const ensureParticipantForms = async ({
     return false;
   }
 
-  // Resolve the template's signer recipient. A rental form template has one
-  // signer (the tenant); we target the first recipient and override it with the
+  // Resolve the template's signer recipient. A rental form template has exactly
+  // one signer (the tenant — enforced at attach time); we override it with the
   // participant's identity.
   const template = await prisma.envelope.findFirst({
     where: { id: templateEnvelopeId, type: EnvelopeType.TEMPLATE, teamId: application.teamId },
     select: { recipients: { orderBy: { id: 'asc' }, select: { id: true } } },
   });
 
-  if (!template || template.recipients.length === 0) {
-    // Misconfigured template (deleted, or has no recipient) — skip silently so a
-    // portal load never 500s on it.
+  if (!template || template.recipients.length !== 1) {
+    // Template deleted, or later edited to have 0 / >1 recipients. Skip rather
+    // than guess which recipient is the tenant — never 500 a portal load.
     return false;
   }
 
@@ -108,13 +108,23 @@ export const ensureParticipantForms = async ({
   });
 
   // Make the token live without emailing — the tenant signs from their portal.
-  await sendDocument({
-    id: { type: 'envelopeId', id: envelope.id },
-    userId: application.ownerUserId,
-    teamId: application.teamId,
-    sendEmail: false,
-    requestMetadata: metadata,
-  });
+  // If sending fails (e.g. disabled owner, rate limit), roll the envelope back so
+  // we don't leave an orphan draft and don't store recipientIds — the next attempt
+  // then starts clean instead of stacking up a new envelope every portal load.
+  // (createDocumentFromTemplate already fired its webhooks; on self-host with no
+  // webhooks that's a non-issue. A couple of orphan DocumentData rows may remain.)
+  try {
+    await sendDocument({
+      id: { type: 'envelopeId', id: envelope.id },
+      userId: application.ownerUserId,
+      teamId: application.teamId,
+      sendEmail: false,
+      requestMetadata: metadata,
+    });
+  } catch (error) {
+    await prisma.envelope.delete({ where: { id: envelope.id } }).catch(() => null);
+    throw error;
+  }
 
   // Persist the recipient id(s) we assigned to this participant.
   const recipientIds = envelope.recipients

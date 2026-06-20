@@ -2,6 +2,7 @@ import { prisma } from '@documenso/prisma';
 import { ParticipantRole, Prisma, RentalApplicationStatus } from '@prisma/client';
 
 import { createChecklistForParticipant } from './checklist';
+import { ensureParticipantForms } from './ensure-participant-forms';
 
 const CLOSED_STATUSES: RentalApplicationStatus[] = [
   RentalApplicationStatus.APPROVED,
@@ -121,6 +122,16 @@ export const joinApplication = async ({
       role,
       isStudent: role === ParticipantRole.APPLICANT ? isStudent : false,
     });
+
+    // Provision the role's signing form now, at the natural write point. If no
+    // template is attached yet this is a no-op; the portal-load fallback and the
+    // admin "Sync forms" button cover anyone provisioned out of order. Best-effort
+    // so a signing hiccup never blocks the join itself.
+    try {
+      await ensureParticipantForms({ participantId: participant.id });
+    } catch (error) {
+      console.error('[rental] ensureParticipantForms failed on join for', participant.id, error);
+    }
 
     return { ok: true, accessToken: participant.accessToken };
   } catch (error) {

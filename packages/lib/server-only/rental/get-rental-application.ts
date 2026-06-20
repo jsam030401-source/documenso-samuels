@@ -1,7 +1,7 @@
 import { prisma } from '@documenso/prisma';
 import { SigningStatus } from '@prisma/client';
 
-import { requiredChecklist } from './checklist';
+import { ADMIN_ONLY_CHECKLIST_TYPES, isAdminOnlyChecklistType, requiredChecklist } from './checklist';
 import { getParticipantProgress } from './progress';
 
 export type GetRentalApplicationOptions = {
@@ -11,9 +11,10 @@ export type GetRentalApplicationOptions = {
 
 /**
  * Admin detail view for one application, scoped to the team. Returns each
- * participant with their required checklist, signing forms, and combined
- * progress (co-signer grouping is done in the UI via `linkedToId`), plus which
- * Documenso templates are attached per role. `null` if not found in this team.
+ * participant with their (tenant) checklist, signing forms, and combined
+ * progress; the admin-only review docs (credit report / proof of deposit) are
+ * split out into `adminDocs`, and applicants carry `packetGeneratedAt`. `null`
+ * if not found in this team.
  */
 export const getRentalApplication = async ({ id, teamId }: GetRentalApplicationOptions) => {
   const application = await prisma.rentalApplication.findFirst({
@@ -46,13 +47,30 @@ export const getRentalApplication = async ({ id, teamId }: GetRentalApplicationO
   const recipientById = new Map(recipients.map((recipient) => [recipient.id, recipient]));
 
   const participants = application.participants.map((participant) => {
-    const checklist = requiredChecklist(participant, participant.checklist).map((item) => ({
-      id: item.id,
-      type: item.type,
-      label: item.label,
-      status: item.status,
-      hasFile: Boolean(item.documentDataId),
-    }));
+    const narrowed = requiredChecklist(participant, participant.checklist);
+
+    // Tenant-uploaded docs drive the participant's progress + checklist display.
+    const checklist = narrowed
+      .filter((item) => !isAdminOnlyChecklistType(item.type))
+      .map((item) => ({
+        id: item.id,
+        type: item.type,
+        label: item.label,
+        status: item.status,
+        hasFile: Boolean(item.documentDataId),
+      }));
+
+    // Admin-only review docs (credit report / proof of deposit), surfaced for the
+    // admin upload controls regardless of whether a row exists yet.
+    const adminDocs = ADMIN_ONLY_CHECKLIST_TYPES.map((type) => {
+      const item = participant.checklist.find((entry) => entry.type === type);
+
+      return {
+        type,
+        checklistItemId: item?.id ?? null,
+        hasFile: Boolean(item?.documentDataId),
+      };
+    });
 
     const forms = participant.recipientIds
       .map((recipientId) => recipientById.get(recipientId))
@@ -74,7 +92,9 @@ export const getRentalApplication = async ({ id, teamId }: GetRentalApplicationO
       linkedToId: participant.linkedToId,
       linkedToName: participant.linkedTo?.name ?? null,
       checklist,
+      adminDocs,
       forms,
+      packetGeneratedAt: participant.packetGeneratedAt,
       progress: getParticipantProgress(checklist, formCounts),
     };
   });

@@ -2,6 +2,18 @@ import { prisma } from '@documenso/prisma';
 import { ChecklistItemStatus, ChecklistItemType, ParticipantRole } from '@prisma/client';
 
 /**
+ * Checklist types the admin uploads during review (credit report, proof of
+ * deposit) — never the tenant. They live as checklist items on the applicant so
+ * the packet picks them up, but are hidden from the tenant portal.
+ */
+export const ADMIN_ONLY_CHECKLIST_TYPES: ChecklistItemType[] = [
+  ChecklistItemType.CREDIT_REPORT,
+  ChecklistItemType.PROOF_OF_DEPOSIT,
+];
+
+export const isAdminOnlyChecklistType = (type: ChecklistItemType) => ADMIN_ONLY_CHECKLIST_TYPES.includes(type);
+
+/**
  * The single source of truth for which supporting documents a participant must
  * submit. Called on join (to seed the checklist) and nowhere else duplicates it.
  *

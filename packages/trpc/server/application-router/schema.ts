@@ -30,3 +30,10 @@ export const ZSyncApplicationFormsRequestSchema = z.object({
 });
 
 export type TSyncApplicationFormsRequest = z.infer<typeof ZSyncApplicationFormsRequestSchema>;
+
+export const ZGenerateApplicantPacketRequestSchema = z.object({
+  applicationId: z.string(),
+  participantId: z.string(),
+});
+
+export type TGenerateApplicantPacketRequest = z.infer<typeof ZGenerateApplicantPacketRequestSchema>;

@@ -1,20 +1,21 @@
 import { getOptionalSession } from '@documenso/auth/server/lib/utils/get-session';
-import { buildApplicantPacket } from '@documenso/lib/server-only/rental/build-applicant-packet';
+import { getApplicantPacketFile } from '@documenso/lib/server-only/rental/get-applicant-packet-file';
 import { getTeamByUrl } from '@documenso/lib/server-only/team/get-team';
+import { getFileServerSide } from '@documenso/lib/universal/upload/get-file.server';
 
 import type { Route } from './+types/applications.$id_.packets.$participantId';
 
 /**
- * Admin download for an applicant's merged application packet. Authorised by the
- * Documenso session AND team membership (getTeamByUrl throws if the user isn't a
- * member); the packet builder is itself team-scoped, so an admin can never reach
- * another team's application. The PDF is generated on demand from current data —
- * nothing is persisted — so it always reflects the latest uploads + signatures.
+ * Admin download for an applicant's generated application packet. Authorised by
+ * the Documenso session AND team membership (getTeamByUrl throws if the user
+ * isn't a member); the packet lookup is itself team-scoped, so an admin can
+ * never reach another team's application. Serves the *stored* packet (generated
+ * via the "Generate packet" action) — 404 until one has been generated.
  */
 export async function loader({ request, params }: Route.LoaderArgs) {
-  const { teamUrl, id, participantId } = params;
+  const { teamUrl, participantId } = params;
 
-  if (!teamUrl || !id || !participantId) {
+  if (!teamUrl || !participantId) {
     throw new Response('Not Found', { status: 404 });
   }
 
@@ -30,26 +31,19 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     throw new Response('Not Found', { status: 404 });
   }
 
-  const packet = await buildApplicantPacket({
-    teamId: team.id,
-    applicationId: id,
-    applicantParticipantId: participantId,
-  });
+  const packet = await getApplicantPacketFile({ teamId: team.id, participantId });
 
   if (!packet) {
     throw new Response('Not Found', { status: 404 });
   }
 
-  if (packet.skipped.length > 0) {
-    console.warn(`[rental packet] ${participantId}: skipped ${packet.skipped.length} file(s):`, packet.skipped);
-  }
+  const bytes = await getFileServerSide(packet.documentData);
 
-  return new Response(packet.bytes, {
+  return new Response(bytes, {
     headers: {
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${packet.filename}"`,
       'Cache-Control': 'private, no-store',
-      'X-Packet-Skipped': String(packet.skipped.length),
     },
   });
 }

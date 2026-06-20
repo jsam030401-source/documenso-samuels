@@ -1,6 +1,7 @@
 import { createRentalApplication } from '@documenso/lib/server-only/rental/create-rental-application';
 import { ensureApplicationForms } from '@documenso/lib/server-only/rental/ensure-participant-forms';
 import { findRentalApplications } from '@documenso/lib/server-only/rental/find-rental-applications';
+import { generateApplicantPacket } from '@documenso/lib/server-only/rental/generate-applicant-packet';
 import { getRentalApplication } from '@documenso/lib/server-only/rental/get-rental-application';
 import { setApplicationTemplates } from '@documenso/lib/server-only/rental/set-application-templates';
 import { getTeamById } from '@documenso/lib/server-only/team/get-team';
@@ -8,6 +9,7 @@ import { getTeamById } from '@documenso/lib/server-only/team/get-team';
 import { authenticatedProcedure, router } from '../trpc';
 import {
   ZCreateApplicationRequestSchema,
+  ZGenerateApplicantPacketRequestSchema,
   ZGetApplicationRequestSchema,
   ZSetApplicationTemplatesRequestSchema,
   ZSyncApplicationFormsRequestSchema,
@@ -104,6 +106,23 @@ export const applicationRouter = router({
         applicationId: input.applicationId,
         teamId,
         requestMetadata: ctx.metadata,
+      });
+    }),
+
+  /**
+   * @private
+   */
+  generateApplicantPacket: authenticatedProcedure
+    .input(ZGenerateApplicantPacketRequestSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { teamId, user } = ctx;
+
+      await getTeamById({ userId: user.id, teamId });
+
+      return await generateApplicantPacket({
+        teamId,
+        applicationId: input.applicationId,
+        applicantParticipantId: input.participantId,
       });
     }),
 });

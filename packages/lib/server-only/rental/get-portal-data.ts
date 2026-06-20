@@ -1,7 +1,7 @@
 import { prisma } from '@documenso/prisma';
 import { SigningStatus } from '@prisma/client';
 
-import { requiredChecklist } from './checklist';
+import { isAdminOnlyChecklistType, requiredChecklist } from './checklist';
 import { ensureParticipantForms } from './ensure-participant-forms';
 import { getParticipantProgress } from './progress';
 
@@ -43,13 +43,17 @@ export const getPortalData = async ({ accessToken }: GetPortalDataOptions) => {
 
   const { application } = participant;
 
-  const items = requiredChecklist(participant, participant.checklist).map((item) => ({
-    id: item.id,
-    type: item.type,
-    label: item.label,
-    status: item.status,
-    hasFile: Boolean(item.documentDataId),
-  }));
+  // Tenant portal shows only the documents the tenant uploads — never the
+  // admin-only review docs (credit report / proof of deposit).
+  const items = requiredChecklist(participant, participant.checklist)
+    .filter((item) => !isAdminOnlyChecklistType(item.type))
+    .map((item) => ({
+      id: item.id,
+      type: item.type,
+      label: item.label,
+      status: item.status,
+      hasFile: Boolean(item.documentDataId),
+    }));
 
   // Self-healing provisioning: make sure this participant has their signing
   // envelope if a role template is attached. Idempotent + cheap once provisioned.

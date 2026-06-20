@@ -29,12 +29,17 @@ type ParticipantForPacket = {
 
 const SATISFIED_STATUSES: ChecklistItemStatus[] = [ChecklistItemStatus.UPLOADED, ChecklistItemStatus.APPROVED];
 
-const sanitizeFilename = (name: string) =>
-  name
-    .trim()
-    .replace(/[^a-z0-9]+/gi, '-')
-    .replace(/^-+|-+$/g, '')
-    .toLowerCase() || 'applicant';
+/** Stable download filename for an applicant's packet (shared with the download route). */
+export const applicantPacketFilename = (name: string) => {
+  const slug =
+    name
+      .trim()
+      .replace(/[^a-z0-9]+/gi, '-')
+      .replace(/^-+|-+$/g, '')
+      .toLowerCase() || 'applicant';
+
+  return `${slug}-application-packet.pdf`;
+};
 
 /**
  * Build one merged PDF "packet" per applicant for an application, scoped to the
@@ -174,8 +179,10 @@ export const buildApplicantPacket = async ({
     });
 
     for (const { envelope } of recipients) {
-      // Only fully-executed envelopes belong in the final packet.
+      // Only fully-executed envelopes belong in the final packet; note the rest so
+      // the reviewer knows a form was omitted because it isn't signed yet.
       if (envelope.status !== DocumentStatus.COMPLETED) {
+        skipped.push(`Signed form "${envelope.title}" (${who}): not signed yet — omitted`);
         continue;
       }
 
@@ -228,7 +235,7 @@ export const buildApplicantPacket = async ({
 
   return {
     bytes,
-    filename: `${sanitizeFilename(applicant.name)}-application-packet.pdf`,
+    filename: applicantPacketFilename(applicant.name),
     skipped,
   };
 };

@@ -1358,6 +1358,12 @@ model ApplicationParticipant {
 
   recipientIds Int[] @default([]) // Documenso Recipient ids for this person's forms-to-sign
 
+  // Generated application packet (merged PDF) for this applicant — DocumentData id
+  // + when it was last generated. Co-signers fold into their applicant's packet, so
+  // these stay null for them. Regenerated on demand (matches PADS "Generate Packages").
+  packetDataId      String?
+  packetGeneratedAt DateTime?
+
   checklist ChecklistItem[]
 
   createdAt DateTime @default(now())

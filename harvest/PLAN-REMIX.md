@@ -179,48 +179,60 @@ checklist, uploads a phone HEIC + a PDF (stored in DocumentData, status flips), 
 view their own uploads, is cookie-recognized on return, and **cannot** reach anyone else's files.
 Signing wiring is Phase 2.
 
-## Phase 2 status (built 2026-06-19, type-clean + biome-clean)
-DONE on `feat/rental-application-phase-1` (no new migration — the Phase 1 schema already carries
-`applicantTemplateId`/`cosignerTemplateId`/`ownerUserId`/`folderId`/`recipientIds`):
-- **Provisioning** `packages/lib/server-only/rental/ensure-participant-forms.ts` — idempotent,
-  self-healing. `ensureParticipantForms({participantId})` builds the role template's envelope via
-  `createDocumentFromTemplate({ id:{type:'envelopeId',id:<templateEnvelopeId>}, userId:ownerUserId,
-  teamId, folderId, recipients:[{id:<first template recipient>, name, email}] })` then
-  `sendDocument({ sendEmail:false })`, and stores the participant's recipient id(s). Single-signer
-  template assumption (the participant IS the template's first recipient). Conditional `updateMany`
-  (recipientIds isEmpty) closes most of the double-load race. `ensureApplicationForms` loops a whole
-  application for the admin Sync button.
-- **Template id storage**: we store the **Documenso template *envelope id*** (`envelope_…`, from
+## Phase 2 status (built + refined 2026-06-19, type-clean + biome-clean)
+DONE on `feat/rental-application-phase-1`. Refined in a second pass to match PADS / make every choice
+defensible (see `session-reports/2026-06-19-rental-phase-2-refinements.md`). **One new migration:**
+`20260619230000_add_rental_packet` (adds `ApplicationParticipant.packetDataId` + `packetGeneratedAt`).
+- **Provisioning** `ensure-participant-forms.ts` — idempotent. `ensureParticipantForms({participantId})`
+  builds the role template's envelope via `createDocumentFromTemplate({ id:{type:'envelopeId',id},
+  userId:ownerUserId, teamId, folderId, recipients:[{id:<the single template recipient>, name, email}] })`
+  then `sendDocument({ sendEmail:false })`, stores the participant's recipient id(s) with a conditional
+  `updateMany` (recipientIds isEmpty). **Single-signer is now enforced** (not assumed): provisioning
+  skips templates with ≠1 recipient. **Send-failure rollback**: if `sendDocument` throws, the just-made
+  envelope is deleted + the error re-thrown, so failures don't stack orphan drafts. Runs at **join**
+  (the natural write point, best-effort), as a **portal-load fallback** (try/catch — never 500s), and via
+  the admin **Sync forms** button (`ensureApplicationForms`).
+- **Template id storage**: store the Documenso template *envelope id* (`envelope_…`, from
   `trpc.template.findTemplates → data[].envelopeId`) in `applicantTemplateId`/`cosignerTemplateId`,
-  and pass it as `{type:'envelopeId', id}`. (The services take `EnvelopeIdOptions`, NOT a bare
-  secondaryId — the one correction vs. the original §"Integration seam".)
-- **Set templates** `set-application-templates.ts` + tRPC `application.setApplicationTemplates`
-  (validates each id is a TEMPLATE in the caller's team). tRPC `application.syncApplicationForms`
-  → `ensureApplicationForms`. Schemas in `application-router/schema.ts`.
-- **Portal forms** `get-portal-data.ts` — calls `ensureParticipantForms` (wrapped in try/catch so a
-  provisioning hiccup never 500s the portal), resolves the participant's recipients to
-  `{token,title,signed}`, feeds `{signed,total}` into `getParticipantProgress`. `portal-view.tsx`
-  already rendered "Forms to Sign" + `/sign/:token`.
-- **Admin** `get-rental-application.ts` now returns attached template ids + per-participant
-  `forms:{title,signed}[]` and form-aware progress. `applications.$id.tsx` got a *Signing forms* card
-  (two `findTemplates` pickers + Save + Sync forms) and a per-applicant *Download packet* button.
-- **Packet** `build-applicant-packet.ts` — ports `harvest/review-actions.ts` `generatePackages` to
-  `@cantoo/pdf-lib` + `getFileServerSide`: per applicant, merges COMPLETED signed envelopes + checklist
-  docs (ID / income-unless-student / co-signers' forms+ID+income / credit / deposit) in fixed order;
-  PDFs copyPages, images centered on Letter, unreadable files skipped + reported. **Streamed on
-  demand** (no persistence, always current) from team-scoped admin route
-  `applications.$id_.packets.$participantId.tsx`.
+  passed as `{type:'envelopeId', id}` (services take `EnvelopeIdOptions`, not a bare secondaryId).
+- **Set templates** `set-application-templates.ts` + tRPC `setApplicationTemplates` — validates each id
+  is a TEMPLATE in the caller's team **with exactly one recipient** (loud error otherwise). tRPC
+  `syncApplicationForms` → `ensureApplicationForms`. tRPC `generateApplicantPacket` → stored packet.
+- **Portal forms** `get-portal-data.ts` — provisions (fallback) + resolves recipients to
+  `{token,title,signed}`, feeds `{signed,total}` into progress. **Hides admin-only checklist types**
+  (CREDIT_REPORT/PROOF_OF_DEPOSIT) from the tenant. `portal-view.tsx` renders "Forms to Sign" + `/sign/:token`.
+- **Admin** `get-rental-application.ts` returns template ids, per-participant `forms`, `adminDocs`
+  (credit/deposit state), `packetGeneratedAt`, and form-aware progress (tenant docs only).
+  `applications.$id.tsx` = *Signing forms* card + **Generate/Regenerate/Download packet** (with
+  generated-at + PADS-style skipped-files box) + **Admin uploads** (credit report / proof of deposit) via
+  a Remix `action` (multipart) → `uploadAdminChecklistFile`.
+- **Admin docs** `upload-admin-checklist-file.ts` — admin-only upload (ports PADS `uploadAdminDoc`):
+  upserts a CREDIT_REPORT/PROOF_OF_DEPOSIT checklist item on the applicant (team-scoped). These feed the
+  packet (by type) but are hidden from the tenant portal (`ADMIN_ONLY_CHECKLIST_TYPES` in `checklist.ts`).
+- **Packet** `build-applicant-packet.ts` (bytes + skipped) + `generate-applicant-packet.ts` (**stores**
+  the merged PDF as DocumentData → `packetDataId`/`packetGeneratedAt`; regenerate swaps + deletes the old
+  one) + `get-applicant-packet-file.ts` (download serves the *stored* file). Merges COMPLETED signed
+  envelopes + checklist docs (ID / income-unless-student / co-signers' forms+ID+income / credit / deposit),
+  PDFs copyPages, images centered on Letter; unreadable files **and** not-yet-signed forms reported in
+  `skipped`. Verified: `Envelope.status===COMPLETED` ⟹ the seal job has written the **signed** PDF
+  (`seal-document.handler.ts` sets status COMPLETED only after repointing documentData), so packets carry
+  signed forms, never blanks.
 
-LANDMINE carried forward: this checkout's `node_modules` can drift from the lockfile. A clean `npm ci`
-installs `@ai-sdk/google-vertex@3.0.81`, whose type dropped `apiKey` — so `ai/google.ts:8`
-(`createVertex({…, apiKey})`) is a **pre-existing, unrelated** tsc error (Vertex ignores apiKey; that's
-the Gemini provider's option). Not touched. Everything in the rental module is type-clean + biome-clean.
+Known limits (audit): a just-signed form shows "Signed" in the portal immediately but is excluded from the
+packet until the async seal job finishes (seconds → regenerate). Each form = 1 Documenso "document" against
+org limits (irrelevant on self-host). A double-simultaneous portal load for a participant provisioned out
+of order could still create one orphan (narrow; join-time provisioning shrinks the window).
+
+LANDMINE carried forward: a clean `npm ci` installs `@ai-sdk/google-vertex@3.0.81`, whose type dropped
+`apiKey` — so `ai/google.ts:8` (`createVertex({…, apiKey})`) is a **pre-existing, unrelated** tsc error
+(Vertex ignores apiKey; that's the Gemini provider's option). Left untouched. All rental code is type-clean.
 
 ## Definition of done (Phase 2)
-Admin attaches a Documenso template per role; a joiner (or an already-joined participant on next portal
-load, or everyone via "Sync forms") gets a signing envelope generated in the app's Folder with a live
-`/sign/:token` and no email; the portal shows "Forms to Sign" with Sign/Signed state and a combined
-docs+forms progress bar; admin sees each participant's signed/awaiting status; admin downloads a merged
-PDF packet per applicant (signed forms + supporting docs, co-signers folded in). **Not yet smoke-tested
-against a live DB/template** — needs a real Documenso TEMPLATE with one signer recipient attached, then
-the end-to-end walk-through in the session report.
+Admin attaches a single-signer Documenso template per role; a joiner (or an already-joined participant on
+next portal load, or everyone via "Sync forms") gets a signing envelope in the app's Folder with a live
+`/sign/:token` and no email; the portal shows "Forms to Sign" (Sign/Signed) + a docs+forms progress bar
+(admin-only docs hidden); admin sees each participant's signed/awaiting status, uploads credit report +
+proof of deposit, then **Generate packet** → a stored merged PDF (signed forms + supporting docs,
+co-signers folded in) downloaded per applicant, with skipped items surfaced. **Migration applied + not yet
+smoke-tested against a live DB/template** — needs a real one-signer Documenso TEMPLATE, then the
+end-to-end walk-through in the session report.

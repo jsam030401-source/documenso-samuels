@@ -1346,6 +1346,14 @@ model RentalApplication {
   applicantTemplateId String? // Envelope.secondaryId (type = TEMPLATE)
   cosignerTemplateId  String?
 
+  // Multi-signer ("shared") applicant signing: ONE document that every applicant
+  // roommate signs (parallel, any order, up to 6 signer slots). When set, applicants
+  // sign this shared envelope instead of getting an individual copy; co-signers still
+  // use `cosignerTemplateId`. The shared envelope is provisioned lazily and
+  // re-provisioned while unsigned; it freezes once anyone signs.
+  sharedApplicantTemplateId String? // Envelope id (type = TEMPLATE) with up to 6 SIGNER slots
+  sharedApplicantEnvelopeId String? // the provisioned shared DOCUMENT envelope id
+
   participants ApplicationParticipant[]
 
   createdAt DateTime @default(now())

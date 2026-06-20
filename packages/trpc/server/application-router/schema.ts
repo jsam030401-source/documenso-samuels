@@ -24,3 +24,9 @@ export const ZSetApplicationTemplatesRequestSchema = z.object({
 });
 
 export type TSetApplicationTemplatesRequest = z.infer<typeof ZSetApplicationTemplatesRequestSchema>;
+
+export const ZSyncApplicationFormsRequestSchema = z.object({
+  applicationId: z.string(),
+});
+
+export type TSyncApplicationFormsRequest = z.infer<typeof ZSyncApplicationFormsRequestSchema>;

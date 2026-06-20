@@ -1,10 +1,17 @@
 import { createRentalApplication } from '@documenso/lib/server-only/rental/create-rental-application';
+import { ensureApplicationForms } from '@documenso/lib/server-only/rental/ensure-participant-forms';
 import { findRentalApplications } from '@documenso/lib/server-only/rental/find-rental-applications';
 import { getRentalApplication } from '@documenso/lib/server-only/rental/get-rental-application';
+import { setApplicationTemplates } from '@documenso/lib/server-only/rental/set-application-templates';
 import { getTeamById } from '@documenso/lib/server-only/team/get-team';
 
 import { authenticatedProcedure, router } from '../trpc';
-import { ZCreateApplicationRequestSchema, ZGetApplicationRequestSchema } from './schema';
+import {
+  ZCreateApplicationRequestSchema,
+  ZGetApplicationRequestSchema,
+  ZSetApplicationTemplatesRequestSchema,
+  ZSyncApplicationFormsRequestSchema,
+} from './schema';
 
 export const applicationRouter = router({
   /**
@@ -64,4 +71,39 @@ export const applicationRouter = router({
 
     return { id: application.id, slug: application.slug };
   }),
+
+  /**
+   * @private
+   */
+  setApplicationTemplates: authenticatedProcedure
+    .input(ZSetApplicationTemplatesRequestSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { teamId, user } = ctx;
+
+      await getTeamById({ userId: user.id, teamId });
+
+      return await setApplicationTemplates({
+        teamId,
+        applicationId: input.applicationId,
+        applicantTemplateId: input.applicantTemplateId,
+        cosignerTemplateId: input.cosignerTemplateId,
+      });
+    }),
+
+  /**
+   * @private
+   */
+  syncApplicationForms: authenticatedProcedure
+    .input(ZSyncApplicationFormsRequestSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { teamId, user } = ctx;
+
+      await getTeamById({ userId: user.id, teamId });
+
+      return await ensureApplicationForms({
+        applicationId: input.applicationId,
+        teamId,
+        requestMetadata: ctx.metadata,
+      });
+    }),
 });

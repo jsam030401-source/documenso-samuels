@@ -1,8 +1,12 @@
 import { trpc } from '@documenso/trpc/react';
 import { Badge } from '@documenso/ui/primitives/badge';
 import { Button } from '@documenso/ui/primitives/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@documenso/ui/primitives/card';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@documenso/ui/primitives/card';
+import { Label } from '@documenso/ui/primitives/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@documenso/ui/primitives/select';
+import { useToast } from '@documenso/ui/primitives/use-toast';
+import { ArrowLeft, Download, ExternalLink, RefreshCw } from 'lucide-react';
+import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 
 export function meta() {
@@ -11,6 +15,9 @@ export function meta() {
 
 type ChecklistStatus = 'PENDING' | 'UPLOADED' | 'APPROVED' | 'REJECTED';
 type ChecklistType = 'ID' | 'INCOME' | 'CREDIT_REPORT' | 'PROOF_OF_DEPOSIT' | 'OTHER';
+
+// Sentinel for the Select "no template" choice (Radix forbids an empty value).
+const NO_TEMPLATE = 'none';
 
 const TYPE_LABELS: Record<ChecklistType, string> = {
   ID: 'Photo ID',
@@ -35,6 +42,11 @@ type ChecklistItem = {
   hasFile: boolean;
 };
 
+type SigningForm = {
+  title: string;
+  signed: boolean;
+};
+
 type Participant = {
   id: string;
   name: string;
@@ -45,6 +57,7 @@ type Participant = {
   linkedToId: string | null;
   linkedToName: string | null;
   checklist: ChecklistItem[];
+  forms: SigningForm[];
   progress: { completed: number; total: number };
 };
 
@@ -79,7 +92,7 @@ function ParticipantBlock({
           </p>
         </div>
         <Badge variant={complete ? 'default' : 'neutral'}>
-          {progress.completed}/{progress.total} docs
+          {progress.completed}/{progress.total} complete
         </Badge>
       </div>
 
@@ -108,6 +121,19 @@ function ParticipantBlock({
           ))
         )}
       </div>
+
+      {participant.forms.length > 0 && (
+        <div className="mt-2 space-y-1 border-muted border-t pt-2">
+          {participant.forms.map((form, index) => (
+            <div key={`${form.title}-${index}`} className="flex items-center justify-between gap-2 text-sm">
+              <span className="text-muted-foreground">{form.title}</span>
+              <Badge variant={form.signed ? 'default' : 'secondary'}>
+                {form.signed ? 'Signed' : 'Awaiting signature'}
+              </Badge>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -117,7 +143,7 @@ export default function ApplicationDetailPage() {
   const teamUrl = params.teamUrl ?? '';
   const id = params.id ?? '';
 
-  const { data, isLoading } = trpc.application.getApplication.useQuery({ id });
+  const { data, isLoading, refetch } = trpc.application.getApplication.useQuery({ id });
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
 
@@ -136,9 +162,126 @@ export default function ApplicationDetailPage() {
       ) : !data ? (
         <p className="text-muted-foreground text-sm">Application not found.</p>
       ) : (
-        <ApplicationDetail data={data} teamUrl={teamUrl} origin={origin} />
+        <ApplicationDetail data={data} teamUrl={teamUrl} origin={origin} onChanged={() => void refetch()} />
       )}
     </div>
+  );
+}
+
+type TemplateOption = { envelopeId: string; title: string };
+
+function SigningSetup({
+  applicationId,
+  applicantTemplateId,
+  cosignerTemplateId,
+  onChanged,
+}: {
+  applicationId: string;
+  applicantTemplateId: string | null;
+  cosignerTemplateId: string | null;
+  onChanged: () => void;
+}) {
+  const { toast } = useToast();
+
+  const { data: templatesResult, isLoading } = trpc.template.findTemplates.useQuery({ perPage: 100 });
+  const templates: TemplateOption[] = (templatesResult?.data ?? []).map((template) => ({
+    envelopeId: template.envelopeId,
+    title: template.title,
+  }));
+
+  const [applicant, setApplicant] = useState(applicantTemplateId ?? NO_TEMPLATE);
+  const [cosigner, setCosigner] = useState(cosignerTemplateId ?? NO_TEMPLATE);
+
+  const { mutateAsync: setTemplates, isPending: isSaving } = trpc.application.setApplicationTemplates.useMutation();
+  const { mutateAsync: syncForms, isPending: isSyncing } = trpc.application.syncApplicationForms.useMutation();
+
+  const onSave = async () => {
+    try {
+      await setTemplates({
+        applicationId,
+        applicantTemplateId: applicant === NO_TEMPLATE ? null : applicant,
+        cosignerTemplateId: cosigner === NO_TEMPLATE ? null : cosigner,
+      });
+
+      onChanged();
+      toast({ title: 'Templates saved', description: 'New joiners get these forms automatically.' });
+    } catch {
+      toast({ title: 'Could not save templates', description: 'Please try again.', variant: 'destructive' });
+    }
+  };
+
+  const onSync = async () => {
+    try {
+      const result = await syncForms({ applicationId });
+
+      onChanged();
+      toast({
+        title: 'Forms synced',
+        description:
+          result.provisioned > 0
+            ? `Created ${result.provisioned} signing form${result.provisioned === 1 ? '' : 's'}.`
+            : 'Everyone already has their forms.',
+      });
+    } catch {
+      toast({ title: 'Could not sync forms', description: 'Please try again.', variant: 'destructive' });
+    }
+  };
+
+  const renderSelect = (value: string, onValueChange: (value: string) => void) => (
+    <Select value={value} onValueChange={onValueChange} disabled={isLoading}>
+      <SelectTrigger>
+        <SelectValue placeholder={isLoading ? 'Loading templates…' : 'No form'} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={NO_TEMPLATE}>No form</SelectItem>
+        {templates.map((template) => (
+          <SelectItem key={template.envelopeId} value={template.envelopeId}>
+            {template.title}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+
+  return (
+    <Card className="mb-6">
+      <CardHeader>
+        <CardTitle className="text-base">Signing forms</CardTitle>
+        <CardDescription>
+          Attach a Documenso template per role. When someone joins, their form is created and ready to sign in their
+          portal — no email is sent. Use “Sync forms” to generate forms for people who joined before a template was
+          attached.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label>Applicant form</Label>
+            {renderSelect(applicant, setApplicant)}
+          </div>
+          <div className="space-y-2">
+            <Label>Co-signer form</Label>
+            {renderSelect(cosigner, setCosigner)}
+          </div>
+        </div>
+
+        {templates.length === 0 && !isLoading && (
+          <p className="text-muted-foreground text-xs">
+            No templates yet. Create one in Templates first, then attach it here.
+          </p>
+        )}
+
+        <div className="flex items-center gap-2">
+          <Button type="button" onClick={onSave} loading={isSaving}>
+            Save templates
+          </Button>
+          <Button type="button" variant="outline" onClick={onSync} loading={isSyncing}>
+            <RefreshCw className="size-4" />
+            Sync forms
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -146,6 +289,7 @@ function ApplicationDetail({
   data,
   teamUrl,
   origin,
+  onChanged,
 }: {
   data: {
     application: {
@@ -156,11 +300,14 @@ function ApplicationDetail({
       rent: number | null;
       moveInDate: Date | string | null;
       status: string;
+      applicantTemplateId: string | null;
+      cosignerTemplateId: string | null;
     };
     participants: Participant[];
   };
   teamUrl: string;
   origin: string;
+  onChanged: () => void;
 }) {
   const { application, participants } = data;
 
@@ -191,6 +338,13 @@ function ApplicationDetail({
         </div>
       </div>
 
+      <SigningSetup
+        applicationId={application.id}
+        applicantTemplateId={application.applicantTemplateId}
+        cosignerTemplateId={application.cosignerTemplateId}
+        onChanged={onChanged}
+      />
+
       <h2 className="mb-3 font-semibold text-lg">Participants</h2>
 
       {participants.length === 0 ? (
@@ -214,6 +368,19 @@ function ApplicationDetail({
                     nested
                   />
                 ))}
+
+                <div className="mt-3 border-t pt-3">
+                  <a
+                    href={`/t/${teamUrl}/applications/${application.id}/packets/${applicant.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Button type="button" variant="outline" size="sm">
+                      <Download className="size-4" />
+                      Download packet
+                    </Button>
+                  </a>
+                </div>
               </CardContent>
             </Card>
           ))}

@@ -178,3 +178,49 @@ applicant (student/non-student) or co-signer (amber "hold tight" when no applica
 checklist, uploads a phone HEIC + a PDF (stored in DocumentData, status flips), sees a progress bar, can
 view their own uploads, is cookie-recognized on return, and **cannot** reach anyone else's files.
 Signing wiring is Phase 2.
+
+## Phase 2 status (built 2026-06-19, type-clean + biome-clean)
+DONE on `feat/rental-application-phase-1` (no new migration — the Phase 1 schema already carries
+`applicantTemplateId`/`cosignerTemplateId`/`ownerUserId`/`folderId`/`recipientIds`):
+- **Provisioning** `packages/lib/server-only/rental/ensure-participant-forms.ts` — idempotent,
+  self-healing. `ensureParticipantForms({participantId})` builds the role template's envelope via
+  `createDocumentFromTemplate({ id:{type:'envelopeId',id:<templateEnvelopeId>}, userId:ownerUserId,
+  teamId, folderId, recipients:[{id:<first template recipient>, name, email}] })` then
+  `sendDocument({ sendEmail:false })`, and stores the participant's recipient id(s). Single-signer
+  template assumption (the participant IS the template's first recipient). Conditional `updateMany`
+  (recipientIds isEmpty) closes most of the double-load race. `ensureApplicationForms` loops a whole
+  application for the admin Sync button.
+- **Template id storage**: we store the **Documenso template *envelope id*** (`envelope_…`, from
+  `trpc.template.findTemplates → data[].envelopeId`) in `applicantTemplateId`/`cosignerTemplateId`,
+  and pass it as `{type:'envelopeId', id}`. (The services take `EnvelopeIdOptions`, NOT a bare
+  secondaryId — the one correction vs. the original §"Integration seam".)
+- **Set templates** `set-application-templates.ts` + tRPC `application.setApplicationTemplates`
+  (validates each id is a TEMPLATE in the caller's team). tRPC `application.syncApplicationForms`
+  → `ensureApplicationForms`. Schemas in `application-router/schema.ts`.
+- **Portal forms** `get-portal-data.ts` — calls `ensureParticipantForms` (wrapped in try/catch so a
+  provisioning hiccup never 500s the portal), resolves the participant's recipients to
+  `{token,title,signed}`, feeds `{signed,total}` into `getParticipantProgress`. `portal-view.tsx`
+  already rendered "Forms to Sign" + `/sign/:token`.
+- **Admin** `get-rental-application.ts` now returns attached template ids + per-participant
+  `forms:{title,signed}[]` and form-aware progress. `applications.$id.tsx` got a *Signing forms* card
+  (two `findTemplates` pickers + Save + Sync forms) and a per-applicant *Download packet* button.
+- **Packet** `build-applicant-packet.ts` — ports `harvest/review-actions.ts` `generatePackages` to
+  `@cantoo/pdf-lib` + `getFileServerSide`: per applicant, merges COMPLETED signed envelopes + checklist
+  docs (ID / income-unless-student / co-signers' forms+ID+income / credit / deposit) in fixed order;
+  PDFs copyPages, images centered on Letter, unreadable files skipped + reported. **Streamed on
+  demand** (no persistence, always current) from team-scoped admin route
+  `applications.$id_.packets.$participantId.tsx`.
+
+LANDMINE carried forward: this checkout's `node_modules` can drift from the lockfile. A clean `npm ci`
+installs `@ai-sdk/google-vertex@3.0.81`, whose type dropped `apiKey` — so `ai/google.ts:8`
+(`createVertex({…, apiKey})`) is a **pre-existing, unrelated** tsc error (Vertex ignores apiKey; that's
+the Gemini provider's option). Not touched. Everything in the rental module is type-clean + biome-clean.
+
+## Definition of done (Phase 2)
+Admin attaches a Documenso template per role; a joiner (or an already-joined participant on next portal
+load, or everyone via "Sync forms") gets a signing envelope generated in the app's Folder with a live
+`/sign/:token` and no email; the portal shows "Forms to Sign" with Sign/Signed state and a combined
+docs+forms progress bar; admin sees each participant's signed/awaiting status; admin downloads a merged
+PDF packet per applicant (signed forms + supporting docs, co-signers folded in). **Not yet smoke-tested
+against a live DB/template** — needs a real Documenso TEMPLATE with one signer recipient attached, then
+the end-to-end walk-through in the session report.

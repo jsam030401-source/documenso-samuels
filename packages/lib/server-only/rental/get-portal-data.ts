@@ -1,6 +1,8 @@
 import { prisma } from '@documenso/prisma';
+import { SigningStatus } from '@prisma/client';
 
 import { requiredChecklist } from './checklist';
+import { ensureParticipantForms } from './ensure-participant-forms';
 import { getParticipantProgress } from './progress';
 
 export type GetPortalDataOptions = {
@@ -49,8 +51,41 @@ export const getPortalData = async ({ accessToken }: GetPortalDataOptions) => {
     hasFile: Boolean(item.documentDataId),
   }));
 
-  // Forms-to-Sign is wired in Phase 2; progress counts checklist only for now.
-  const progress = getParticipantProgress(items);
+  // Self-healing provisioning: make sure this participant has their signing
+  // envelope if a role template is attached. Idempotent + cheap once provisioned.
+  // Never let a provisioning hiccup take down the tenant's portal — on failure we
+  // just render without the form; the next load (or admin "Sync forms") retries.
+  try {
+    await ensureParticipantForms({ participantId: participant.id });
+  } catch (error) {
+    console.error('[rental] ensureParticipantForms failed for', participant.id, error);
+  }
+
+  // Re-read after provisioning, then resolve each form's live signing status.
+  const refreshed = await prisma.applicationParticipant.findUnique({
+    where: { id: participant.id },
+    select: { recipientIds: true },
+  });
+
+  const recipientIds = refreshed?.recipientIds ?? participant.recipientIds;
+
+  const recipients = recipientIds.length
+    ? await prisma.recipient.findMany({
+        where: { id: { in: recipientIds } },
+        select: { token: true, signingStatus: true, envelope: { select: { title: true } } },
+      })
+    : [];
+
+  const forms = recipients.map((recipient) => ({
+    token: recipient.token,
+    title: recipient.envelope.title,
+    signed: recipient.signingStatus === SigningStatus.SIGNED,
+  }));
+
+  const progress = getParticipantProgress(items, {
+    signed: forms.filter((form) => form.signed).length,
+    total: forms.length,
+  });
 
   const group = application.participants
     .filter((other) => other.id !== participant.id)
@@ -81,7 +116,7 @@ export const getPortalData = async ({ accessToken }: GetPortalDataOptions) => {
     },
     group,
     checklist: items,
-    forms: [] as { token: string; title: string; signed: boolean }[],
+    forms,
     progress,
   };
 };

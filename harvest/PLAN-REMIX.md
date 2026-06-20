@@ -243,13 +243,21 @@ SHIPPED + DEPLOYED (live image `d2d94f5de596`): **deal terms + prefill + calenda
 crash once a rental route SSR'd the calendar; now declared as an `apps/remix` dep — **smoke-boot the image
 before deploying**).
 
-BUILT but NOT yet deployed (this branch, type-clean): **field-mapping FOUNDATION** (`RentalTemplateFieldMap`
-table + `DEAL_TERM_FIELDS` constants + `prefill.ts` mapping-first resolution + `ensureParticipantForms` loads
-it), **`firstMonthRent`** field, **computed balance due**, **calendar year dropdowns**. Two pending migrations:
-`add_rental_template_field_map`, `add_first_month_rent` (apply on next deploy).
+## DONE + MERGED to `main` (2026-06-20) — see `session-reports/2026-06-20-rental-fieldmap-pads-controls-merge.md`
+Field-mapping **tRPC + UI** (the per-template dropdown mapping), **PADS controls** (remove participant/group,
+edit student⇄non-student type), tenant **"Back to your application"** on the signing-complete page (Share
+hidden for rental signers), **start.sh** inline-cert recognition, **calendar dropdown colors**, field-mapping
+**collapsed** behind a disclosure, and **compact MM/DD/YYYY** prefill dates. **CHECK-3 confirmed**: read-only
+prefilled TEXT values render in the SEALED PDF. Deployed + live-verified; `feat/rental-application-phase-1`
+fast-forwarded into `main` and deleted. Migrations `add_rental_template_field_map` + `add_first_month_rent`
+applied on the live DB.
 
-NEXT (handoff, priority order): (1) finish field-mapping **tRPC + UI** — the broker's template fields are
-shorthand (`FMR/LMR/App/SD/BF/Key/Today/Due/From/To/Months`) so label auto-match won't fill them; the
-explicit dropdown mapping is required. (2) rebuild + redeploy. (3) verify **read-only prefill renders in the
-SEALED PDF** (open question). (4) **multi-signer forms** — Jared wants them; currently blocked by single-signer
-enforcement; needs a foundational shared-envelope + recipient→participant design.
+NEXT (priority order):
+1. **Multi-signer forms** ("Phase 3", the big one) — Jared wants one document several people sign. Currently
+   blocked by single-signer enforcement (one envelope per participant). True multi-signer = one shared
+   envelope whose recipients map to different participants (PADS' `template_instance_signers` model); a
+   foundational change to provisioning + recipient→participant assignment. Design as its own effort.
+2. **Date-field type check** — the compact-date fix only touches TEXT fields we prefill. If any broker date
+   fields are Documenso **DATE-type** (not prefilled by us), the year fix won't reach them — handle separately
+   if the year is still missing after the rebuild.
+3. **Further PADS-parity gaps** as they surface during Jared's testing (remove + edit-type came from exactly that).

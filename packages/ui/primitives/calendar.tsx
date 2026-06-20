@@ -17,6 +17,13 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
         month: 'space-y-4',
         caption: 'flex justify-center pt-1 relative items-center',
         caption_label: 'text-sm font-medium',
+        // `dropdown-buttons` caption layout renders native <select>s; without
+        // explicit theme colors they fall back to black-on-black in dark mode.
+        caption_dropdowns: 'flex justify-center gap-1',
+        dropdown:
+          'cursor-pointer rounded-md border border-input bg-background px-2 py-1 text-foreground text-sm font-medium outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+        dropdown_month: 'relative inline-flex items-center',
+        dropdown_year: 'relative inline-flex items-center',
         nav: 'space-x-1 flex items-center',
         nav_button: cn(
           buttonVariants({ variant: 'outline' }),

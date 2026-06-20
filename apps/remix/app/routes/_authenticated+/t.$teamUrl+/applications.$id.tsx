@@ -8,12 +8,24 @@ import { Badge } from '@documenso/ui/primitives/badge';
 import { Button } from '@documenso/ui/primitives/button';
 import { Calendar } from '@documenso/ui/primitives/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@documenso/ui/primitives/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@documenso/ui/primitives/collapsible';
 import { Input } from '@documenso/ui/primitives/input';
 import { Label } from '@documenso/ui/primitives/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@documenso/ui/primitives/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@documenso/ui/primitives/select';
 import { useToast } from '@documenso/ui/primitives/use-toast';
-import { ArrowLeft, CalendarIcon, Download, ExternalLink, Loader2, Package, RefreshCw, Upload } from 'lucide-react';
+import {
+  ArrowLeft,
+  CalendarIcon,
+  ChevronDown,
+  Download,
+  ExternalLink,
+  Loader2,
+  Package,
+  RefreshCw,
+  Settings2,
+  Upload,
+} from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useFetcher, useParams } from 'react-router';
 
@@ -656,20 +668,32 @@ function SigningSetup({
           </Button>
         </div>
 
+        {/* Field mapping is a one-time, per-template setup, so it stays tucked away
+            behind a disclosure (closed by default) rather than cluttering the page. */}
         {attachedTemplates.length > 0 && (
-          <div className="space-y-4 border-t pt-4">
-            <p className="text-muted-foreground text-xs">
-              Map each saved template's fields to deal terms. Their labels are the broker's own shorthand, so this is
-              how prefill knows which field holds which value.
-            </p>
-            {attachedTemplates.map((entry) => (
-              <TemplateFieldMap
-                key={entry.envelopeId}
-                templateEnvelopeId={entry.envelopeId}
-                roleLabel={entry.roleLabel}
-              />
-            ))}
-          </div>
+          <Collapsible className="border-t pt-4">
+            <CollapsibleTrigger asChild>
+              <Button type="button" variant="ghost" size="sm" className="text-muted-foreground">
+                <Settings2 className="size-4" />
+                Field mapping (one-time setup)
+                <ChevronDown className="size-4" />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-3 space-y-4">
+              <p className="text-muted-foreground text-xs">
+                Map each saved template's fields to deal terms. Their labels are the broker's own shorthand, so this is
+                how prefill knows which field holds which value. You only need to do this once per template — every
+                application that uses it inherits the mapping.
+              </p>
+              {attachedTemplates.map((entry) => (
+                <TemplateFieldMap
+                  key={entry.envelopeId}
+                  templateEnvelopeId={entry.envelopeId}
+                  roleLabel={entry.roleLabel}
+                />
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
         )}
       </CardContent>
     </Card>

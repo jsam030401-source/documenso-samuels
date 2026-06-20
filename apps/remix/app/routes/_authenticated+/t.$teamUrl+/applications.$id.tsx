@@ -20,6 +20,15 @@ import { Button } from '@documenso/ui/primitives/button';
 import { Calendar } from '@documenso/ui/primitives/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@documenso/ui/primitives/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@documenso/ui/primitives/collapsible';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@documenso/ui/primitives/dialog';
 import { Input } from '@documenso/ui/primitives/input';
 import { Label } from '@documenso/ui/primitives/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@documenso/ui/primitives/popover';
@@ -31,6 +40,7 @@ import {
   ChevronDown,
   Download,
   ExternalLink,
+  FilePlus,
   Loader2,
   Package,
   RefreshCw,
@@ -162,6 +172,97 @@ type Participant = {
   progress: { completed: number; total: number };
 };
 
+/**
+ * Admin: attach an ADDITIONAL single-signer template for one person to sign (a lease,
+ * addendum, etc.). It lands in their portal alongside the auto application form — which
+ * stays the only form that's sent automatically on join.
+ */
+function AddDocumentButton({
+  applicationId,
+  participantId,
+  onChanged,
+}: {
+  applicationId: string;
+  participantId: string;
+  onChanged: () => void;
+}) {
+  const { toast } = useToast();
+  const { data: templatesResult, isLoading } = trpc.template.findTemplates.useQuery({ perPage: 100 });
+  const templates: TemplateOption[] = (templatesResult?.data ?? []).map((template) => ({
+    envelopeId: template.envelopeId,
+    title: template.title,
+  }));
+  const { mutateAsync: addDocument, isPending } = trpc.application.addParticipantDocument.useMutation();
+
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState(NO_TEMPLATE);
+
+  const onAdd = async () => {
+    if (selected === NO_TEMPLATE) {
+      return;
+    }
+
+    try {
+      await addDocument({ applicationId, participantId, templateEnvelopeId: selected });
+      setOpen(false);
+      setSelected(NO_TEMPLATE);
+      onChanged();
+      toast({ title: 'Document added', description: 'It’s now in the tenant’s portal to sign.' });
+    } catch (error) {
+      toast({
+        title: 'Could not add document',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button type="button" variant="ghost" size="sm" className="h-8 text-muted-foreground">
+          <FilePlus className="size-4" />
+          Add document
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add a document</DialogTitle>
+          <DialogDescription>
+            Send an extra form (a single-signer template) for this person to sign. It appears in their portal alongside
+            the application — the application stays the only form sent automatically.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-2">
+          <Label>Template</Label>
+          <Select value={selected} onValueChange={setSelected} disabled={isLoading}>
+            <SelectTrigger>
+              <SelectValue placeholder={isLoading ? 'Loading templates…' : 'Pick a template'} />
+            </SelectTrigger>
+            <SelectContent>
+              {templates.map((template) => (
+                <SelectItem key={template.envelopeId} value={template.envelopeId}>
+                  {template.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {templates.length === 0 && !isLoading && (
+            <p className="text-muted-foreground text-xs">No templates yet. Create one in Templates first.</p>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button type="button" onClick={onAdd} loading={isPending} disabled={selected === NO_TEMPLATE}>
+            Add &amp; send
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ParticipantActions({
   participant,
   applicationId,
@@ -234,6 +335,8 @@ function ParticipantActions({
           </SelectContent>
         </Select>
       )}
+
+      <AddDocumentButton applicationId={applicationId} participantId={participant.id} onChanged={onChanged} />
 
       <AlertDialog>
         <AlertDialogTrigger asChild>

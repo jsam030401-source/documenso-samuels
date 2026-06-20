@@ -43,10 +43,10 @@ export const removeParticipant = async ({ teamId, applicationId, participantId }
 
   const targets = await prisma.applicationParticipant.findMany({
     where: { id: { in: ids } },
-    select: { id: true, recipientIds: true, packetDataId: true },
+    select: { id: true, recipientIds: true, additionalRecipientIds: true, packetDataId: true },
   });
 
-  const recipientIds = targets.flatMap((target) => target.recipientIds);
+  const recipientIds = targets.flatMap((target) => [...target.recipientIds, ...target.additionalRecipientIds]);
   const packetDataIds = targets.map((target) => target.packetDataId).filter((id): id is string => id !== null);
 
   // Delete the signing envelopes these recipients belong to (cascades recipients + fields).

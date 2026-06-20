@@ -73,7 +73,14 @@ export const buildApplicantPacket = async ({
 
   const applicant = await prisma.applicationParticipant.findFirst({
     where: { id: applicantParticipantId, applicationId: application.id, role: ParticipantRole.APPLICANT },
-    select: { id: true, name: true, isStudent: true, recipientIds: true, checklist: checklistSelect },
+    select: {
+      id: true,
+      name: true,
+      isStudent: true,
+      recipientIds: true,
+      additionalRecipientIds: true,
+      checklist: checklistSelect,
+    },
   });
 
   if (!applicant) {
@@ -83,7 +90,14 @@ export const buildApplicantPacket = async ({
   const cosigners = await prisma.applicationParticipant.findMany({
     where: { applicationId: application.id, role: ParticipantRole.COSIGNER, linkedToId: applicant.id },
     orderBy: { createdAt: 'asc' },
-    select: { id: true, name: true, isStudent: true, recipientIds: true, checklist: checklistSelect },
+    select: {
+      id: true,
+      name: true,
+      isStudent: true,
+      recipientIds: true,
+      additionalRecipientIds: true,
+      checklist: checklistSelect,
+    },
   });
 
   const pdfDoc = await PDFDocument.create();
@@ -210,8 +224,9 @@ export const buildApplicantPacket = async ({
     await mergeFile(documentData, label);
   };
 
-  // Fixed packet order (mirrors the PADS reviewer's expectation).
-  await mergeSignedForms(applicant.recipientIds, applicant.name);
+  // Fixed packet order (mirrors the PADS reviewer's expectation). Added documents
+  // fold in alongside the applicant's auto application form.
+  await mergeSignedForms([...applicant.recipientIds, ...applicant.additionalRecipientIds], applicant.name);
   await mergeChecklist(applicant, 'ID', `Photo ID: ${applicant.name}`);
 
   if (!applicant.isStudent) {
@@ -219,7 +234,7 @@ export const buildApplicantPacket = async ({
   }
 
   for (const cosigner of cosigners) {
-    await mergeSignedForms(cosigner.recipientIds, cosigner.name);
+    await mergeSignedForms([...cosigner.recipientIds, ...cosigner.additionalRecipientIds], cosigner.name);
     await mergeChecklist(cosigner, 'ID', `Photo ID: ${cosigner.name}`);
     await mergeChecklist(cosigner, 'INCOME', `Income: ${cosigner.name}`);
   }

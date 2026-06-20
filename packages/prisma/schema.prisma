@@ -1375,6 +1375,11 @@ model ApplicationParticipant {
 
   recipientIds Int[] @default([]) // Documenso Recipient ids for this person's forms-to-sign
 
+  // Admin-added extra documents (templates) this person must sign, beyond the auto
+  // application form. Tracked separately so the auto-form refresh never clobbers them,
+  // and so the application stays the ONLY form that appears automatically on join.
+  additionalRecipientIds Int[] @default([])
+
   // Generated application packet (merged PDF) for this applicant — DocumentData id
   // + when it was last generated. Co-signers fold into their applicant's packet, so
   // these stay null for them. Regenerated on demand (matches PADS "Generate Packages").

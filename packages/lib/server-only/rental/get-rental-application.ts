@@ -39,7 +39,10 @@ export const getRentalApplication = async ({ id, teamId }: GetRentalApplicationO
   }
 
   // Resolve every participant's signing recipients in one query, then index by id.
-  const allRecipientIds = application.participants.flatMap((participant) => participant.recipientIds);
+  const allRecipientIds = application.participants.flatMap((participant) => [
+    ...participant.recipientIds,
+    ...participant.additionalRecipientIds,
+  ]);
 
   const recipients = allRecipientIds.length
     ? await prisma.recipient.findMany({
@@ -76,7 +79,7 @@ export const getRentalApplication = async ({ id, teamId }: GetRentalApplicationO
       };
     });
 
-    const forms = participant.recipientIds
+    const forms = [...participant.recipientIds, ...participant.additionalRecipientIds]
       .map((recipientId) => recipientById.get(recipientId))
       .filter((recipient): recipient is NonNullable<typeof recipient> => Boolean(recipient))
       .map((recipient) => ({

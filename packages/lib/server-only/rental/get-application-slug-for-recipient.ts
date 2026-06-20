@@ -9,7 +9,9 @@ import { prisma } from '@documenso/prisma';
  */
 export const getApplicationSlugForRecipient = async (recipientId: number): Promise<string | null> => {
   const participant = await prisma.applicationParticipant.findFirst({
-    where: { recipientIds: { has: recipientId } },
+    where: {
+      OR: [{ recipientIds: { has: recipientId } }, { additionalRecipientIds: { has: recipientId } }],
+    },
     select: { application: { select: { slug: true } } },
   });
 

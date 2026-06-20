@@ -69,10 +69,13 @@ export const getPortalData = async ({ accessToken }: GetPortalDataOptions) => {
   // Re-read after provisioning, then resolve each form's live signing status.
   const refreshed = await prisma.applicationParticipant.findUnique({
     where: { id: participant.id },
-    select: { recipientIds: true },
+    select: { recipientIds: true, additionalRecipientIds: true },
   });
 
-  const recipientIds = refreshed?.recipientIds ?? participant.recipientIds;
+  // The auto application form PLUS any admin-added extra documents.
+  const recipientIds = refreshed
+    ? [...refreshed.recipientIds, ...refreshed.additionalRecipientIds]
+    : participant.recipientIds;
 
   const recipients = recipientIds.length
     ? await prisma.recipient.findMany({

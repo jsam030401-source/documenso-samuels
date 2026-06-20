@@ -97,3 +97,11 @@ export const ZSetParticipantStudentRequestSchema = z.object({
 });
 
 export type TSetParticipantStudentRequest = z.infer<typeof ZSetParticipantStudentRequestSchema>;
+
+export const ZAddParticipantDocumentRequestSchema = z.object({
+  applicationId: z.string(),
+  participantId: z.string(),
+  templateEnvelopeId: z.string(),
+});
+
+export type TAddParticipantDocumentRequest = z.infer<typeof ZAddParticipantDocumentRequestSchema>;

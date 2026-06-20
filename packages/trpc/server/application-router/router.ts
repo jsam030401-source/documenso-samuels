@@ -1,3 +1,4 @@
+import { addParticipantDocument } from '@documenso/lib/server-only/rental/add-participant-document';
 import { composeAddress } from '@documenso/lib/server-only/rental/address';
 import { createRentalApplication } from '@documenso/lib/server-only/rental/create-rental-application';
 import { ensureApplicationForms } from '@documenso/lib/server-only/rental/ensure-participant-forms';
@@ -14,6 +15,7 @@ import { getTeamById } from '@documenso/lib/server-only/team/get-team';
 
 import { authenticatedProcedure, router } from '../trpc';
 import {
+  ZAddParticipantDocumentRequestSchema,
   ZCreateApplicationRequestSchema,
   ZGenerateApplicantPacketRequestSchema,
   ZGetApplicationRequestSchema,
@@ -211,6 +213,24 @@ export const applicationRouter = router({
         applicationId: input.applicationId,
         participantId: input.participantId,
         isStudent: input.isStudent,
+      });
+    }),
+
+  /**
+   * @private
+   */
+  addParticipantDocument: authenticatedProcedure
+    .input(ZAddParticipantDocumentRequestSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { teamId, user } = ctx;
+
+      await getTeamById({ userId: user.id, teamId });
+
+      return await addParticipantDocument({
+        teamId,
+        applicationId: input.applicationId,
+        participantId: input.participantId,
+        templateEnvelopeId: input.templateEnvelopeId,
       });
     }),
 });

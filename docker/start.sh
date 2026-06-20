@@ -10,6 +10,8 @@ CERT_PATH="${NEXT_PRIVATE_SIGNING_LOCAL_FILE_PATH:-/opt/documenso/cert.p12}"
 
 if [ -f "$CERT_PATH" ] && [ -r "$CERT_PATH" ]; then
     printf "✅ Certificate file found and readable - document signing is ready!\n"
+elif [ -n "$NEXT_PRIVATE_SIGNING_LOCAL_FILE_CONTENTS" ]; then
+    printf "✅ Certificate provided via NEXT_PRIVATE_SIGNING_LOCAL_FILE_CONTENTS - document signing is ready!\n"
 else
     printf "⚠️ Certificate not found or not readable\n"
     printf "💡 Tip: Documenso will still start, but document signing will be unavailable\n"

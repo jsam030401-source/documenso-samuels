@@ -8,6 +8,7 @@ import { isRecipientAuthorized } from '@documenso/lib/server-only/document/is-re
 import { getFieldsForToken } from '@documenso/lib/server-only/field/get-fields-for-token';
 import { getRecipientByToken } from '@documenso/lib/server-only/recipient/get-recipient-by-token';
 import { getRecipientSignatures } from '@documenso/lib/server-only/recipient/get-recipient-signatures';
+import { getApplicationSlugForRecipient } from '@documenso/lib/server-only/rental/get-application-slug-for-recipient';
 import { getUserByEmail } from '@documenso/lib/server-only/user/get-user-by-email';
 import { isDocumentCompleted } from '@documenso/lib/utils/document';
 import { trpc } from '@documenso/trpc/react';
@@ -60,6 +61,10 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     throw new Response('Not Found', { status: 404 });
   }
 
+  // If this signer is a rental-application tenant, surface a link back to their
+  // portal (they have no account, so the normal "Go Back Home" never shows).
+  const rentalSlug = await getApplicationSlugForRecipient(recipient.id).catch(() => null);
+
   const isDocumentAccessValid = await isRecipientAuthorized({
     type: 'ACCESS',
     documentAuthOptions: document.authOptions,
@@ -72,6 +77,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
       isDocumentAccessValid: false,
       recipientEmail: recipient.email,
       branding,
+      rentalSlug,
     } as const;
   }
 
@@ -99,6 +105,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     recipient,
     returnToHomePath,
     branding,
+    rentalSlug,
   };
 }
 
@@ -119,6 +126,7 @@ export default function CompletedSigningPage({ loaderData }: Route.ComponentProp
     recipientEmail,
     returnToHomePath,
     branding,
+    rentalSlug,
   } = loaderData;
 
   // Poll signing status every few seconds
@@ -249,11 +257,16 @@ export default function CompletedSigningPage({ loaderData }: Route.ComponentProp
               ))}
 
             <div className="mt-8 flex w-full max-w-xs flex-col items-stretch gap-4 md:w-auto md:max-w-none md:flex-row md:items-center">
-              <DocumentShareButton
-                documentId={document.id}
-                token={recipient.token}
-                className="w-full max-w-none md:flex-1"
-              />
+              {/* Rental tenants get a way back to their portal instead of the
+                  social "Share" card (which only promotes Documenso, and never
+                  shares the document — the broker receives it automatically). */}
+              {!rentalSlug && (
+                <DocumentShareButton
+                  documentId={document.id}
+                  token={recipient.token}
+                  className="w-full max-w-none md:flex-1"
+                />
+              )}
 
               {isDocumentCompleted(document) && (
                 <EnvelopeDownloadDialog
@@ -270,12 +283,18 @@ export default function CompletedSigningPage({ loaderData }: Route.ComponentProp
                 />
               )}
 
-              {user && (
-                <Button asChild>
-                  <Link to={returnToHomePath}>
-                    <Trans>Go Back Home</Trans>
-                  </Link>
+              {rentalSlug ? (
+                <Button asChild className="flex-1 md:flex-initial">
+                  <Link to={`/a/${rentalSlug}`}>Back to your application</Link>
                 </Button>
+              ) : (
+                user && (
+                  <Button asChild>
+                    <Link to={returnToHomePath}>
+                      <Trans>Go Back Home</Trans>
+                    </Link>
+                  </Button>
+                )
               )}
             </div>
           </div>

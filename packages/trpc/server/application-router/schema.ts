@@ -1,3 +1,4 @@
+import { DEAL_TERM_KEYS } from '@documenso/lib/types/rental-deal-terms';
 import { z } from 'zod';
 
 export const ZCreateApplicationRequestSchema = z.object({
@@ -62,3 +63,22 @@ export const ZUpdateApplicationTermsRequestSchema = z.object({
 });
 
 export type TUpdateApplicationTermsRequest = z.infer<typeof ZUpdateApplicationTermsRequestSchema>;
+
+export const ZGetTemplateFieldMapRequestSchema = z.object({
+  templateEnvelopeId: z.string(),
+});
+
+export type TGetTemplateFieldMapRequest = z.infer<typeof ZGetTemplateFieldMapRequestSchema>;
+
+export const ZSetTemplateFieldMapRequestSchema = z.object({
+  templateEnvelopeId: z.string(),
+  mappings: z.array(
+    z.object({
+      fieldId: z.number().int(),
+      // null = leave this field for the tenant (clears any existing mapping).
+      termKey: z.enum(DEAL_TERM_KEYS).nullable(),
+    }),
+  ),
+});
+
+export type TSetTemplateFieldMapRequest = z.infer<typeof ZSetTemplateFieldMapRequestSchema>;

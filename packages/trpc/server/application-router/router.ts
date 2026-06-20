@@ -4,7 +4,9 @@ import { ensureApplicationForms } from '@documenso/lib/server-only/rental/ensure
 import { findRentalApplications } from '@documenso/lib/server-only/rental/find-rental-applications';
 import { generateApplicantPacket } from '@documenso/lib/server-only/rental/generate-applicant-packet';
 import { getRentalApplication } from '@documenso/lib/server-only/rental/get-rental-application';
+import { getTemplateFieldMap } from '@documenso/lib/server-only/rental/get-template-field-map';
 import { setApplicationTemplates } from '@documenso/lib/server-only/rental/set-application-templates';
+import { setTemplateFieldMap } from '@documenso/lib/server-only/rental/set-template-field-map';
 import { updateApplicationTerms } from '@documenso/lib/server-only/rental/update-application-terms';
 import { getTeamById } from '@documenso/lib/server-only/team/get-team';
 
@@ -13,7 +15,9 @@ import {
   ZCreateApplicationRequestSchema,
   ZGenerateApplicantPacketRequestSchema,
   ZGetApplicationRequestSchema,
+  ZGetTemplateFieldMapRequestSchema,
   ZSetApplicationTemplatesRequestSchema,
+  ZSetTemplateFieldMapRequestSchema,
   ZSyncApplicationFormsRequestSchema,
   ZUpdateApplicationTermsRequestSchema,
 } from './schema';
@@ -143,5 +147,33 @@ export const applicationRouter = router({
       await updateApplicationTerms({ teamId, applicationId, data });
 
       return { success: true };
+    }),
+
+  /**
+   * @private
+   */
+  getTemplateFieldMap: authenticatedProcedure.input(ZGetTemplateFieldMapRequestSchema).query(async ({ input, ctx }) => {
+    const { teamId, user } = ctx;
+
+    await getTeamById({ userId: user.id, teamId });
+
+    return await getTemplateFieldMap({ teamId, templateEnvelopeId: input.templateEnvelopeId });
+  }),
+
+  /**
+   * @private
+   */
+  setTemplateFieldMap: authenticatedProcedure
+    .input(ZSetTemplateFieldMapRequestSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { teamId, user } = ctx;
+
+      await getTeamById({ userId: user.id, teamId });
+
+      return await setTemplateFieldMap({
+        teamId,
+        templateEnvelopeId: input.templateEnvelopeId,
+        mappings: input.mappings,
+      });
     }),
 });

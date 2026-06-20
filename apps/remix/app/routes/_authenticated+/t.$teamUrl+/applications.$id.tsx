@@ -1,6 +1,7 @@
 import { getOptionalSession } from '@documenso/auth/server/lib/utils/get-session';
 import { uploadAdminChecklistFile } from '@documenso/lib/server-only/rental/upload-admin-checklist-file';
 import { getTeamByUrl } from '@documenso/lib/server-only/team/get-team';
+import { DEAL_TERM_FIELDS, type DealTermKey } from '@documenso/lib/types/rental-deal-terms';
 import { trpc } from '@documenso/trpc/react';
 import { cn } from '@documenso/ui/lib/utils';
 import { Badge } from '@documenso/ui/primitives/badge';
@@ -82,6 +83,9 @@ type AdminDocType = 'CREDIT_REPORT' | 'PROOF_OF_DEPOSIT';
 
 // Sentinel for the Select "no template" choice (Radix forbids an empty value).
 const NO_TEMPLATE = 'none';
+
+// Sentinel for the field-map Select "leave this field for the tenant" choice.
+const NO_MAPPING = 'none';
 
 const TYPE_LABELS: Record<ChecklistType, string> = {
   ID: 'Photo ID',
@@ -417,6 +421,108 @@ export default function ApplicationDetailPage() {
 
 type TemplateOption = { envelopeId: string; title: string };
 
+/**
+ * Per-template field → deal-term mapping editor. The broker's template fields are
+ * personal shorthand (e.g. `FMR`, `BF`, `Key`) that label auto-match can't resolve,
+ * so this is how prefill is told which field holds which deal term. Shown once per
+ * attached (saved) template; saving only persists the mapping — the values land in
+ * unsigned forms on the next "Generate / refresh forms".
+ */
+function TemplateFieldMap({ templateEnvelopeId, roleLabel }: { templateEnvelopeId: string; roleLabel: string }) {
+  const { toast } = useToast();
+  const { data, isLoading, refetch } = trpc.application.getTemplateFieldMap.useQuery({ templateEnvelopeId });
+  const { mutateAsync: saveMap, isPending: isSaving } = trpc.application.setTemplateFieldMap.useMutation();
+
+  const [selections, setSelections] = useState<Record<number, string>>({});
+
+  // Hydrate (and re-sync after save) the local selects from the persisted mapping.
+  useEffect(() => {
+    if (data) {
+      setSelections(Object.fromEntries(data.fields.map((field) => [field.fieldId, field.termKey ?? NO_MAPPING])));
+    }
+  }, [data]);
+
+  const onSave = async () => {
+    if (!data) {
+      return;
+    }
+
+    try {
+      await saveMap({
+        templateEnvelopeId,
+        mappings: data.fields.map((field) => {
+          const value = selections[field.fieldId] ?? NO_MAPPING;
+
+          return { fieldId: field.fieldId, termKey: value === NO_MAPPING ? null : (value as DealTermKey) };
+        }),
+      });
+
+      await refetch();
+      toast({
+        title: 'Field mapping saved',
+        description: 'Use “Generate / refresh forms” above to push it into unsigned forms.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Could not save mapping',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  return (
+    <div className="space-y-3 rounded-md border p-3">
+      <div>
+        <p className="font-medium text-sm">Field mapping · {roleLabel}</p>
+        <p className="text-muted-foreground text-xs">
+          {data?.title ? `“${data.title}”. ` : ''}
+          Point each template field at a deal term. Unmapped fields are left blank for the tenant to fill.
+        </p>
+      </div>
+
+      {isLoading ? (
+        <p className="text-muted-foreground text-sm">Loading fields…</p>
+      ) : !data || data.fields.length === 0 ? (
+        <p className="text-muted-foreground text-sm">This template has no text fields to map.</p>
+      ) : (
+        <>
+          <div className="space-y-2">
+            {data.fields.map((field, index) => (
+              <div key={field.fieldId} className="grid grid-cols-1 items-center gap-2 sm:grid-cols-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm">{field.label ?? `Unlabelled field ${index + 1}`}</p>
+                  <p className="text-muted-foreground text-xs">Page {field.page}</p>
+                </div>
+                <Select
+                  value={selections[field.fieldId] ?? NO_MAPPING}
+                  onValueChange={(value) => setSelections((prev) => ({ ...prev, [field.fieldId]: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_MAPPING}>Leave for tenant</SelectItem>
+                    {DEAL_TERM_FIELDS.map((term) => (
+                      <SelectItem key={term.key} value={term.key}>
+                        {term.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ))}
+          </div>
+
+          <Button type="button" size="sm" onClick={onSave} loading={isSaving}>
+            Save field mapping
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function SigningSetup({
   applicationId,
   applicantTemplateId,
@@ -478,6 +584,24 @@ function SigningSetup({
     }
   };
 
+  // Field mapping is driven by the *saved* templates (props), so attach + save a
+  // template first, then its fields appear below to map. Dedupe so a template used
+  // for both roles is only mapped once.
+  const attachedTemplates = (() => {
+    const byEnvelope = new Map<string, string[]>();
+
+    for (const [label, envelopeId] of [
+      ['Applicant form', applicantTemplateId],
+      ['Co-signer form', cosignerTemplateId],
+    ] as const) {
+      if (envelopeId) {
+        byEnvelope.set(envelopeId, [...(byEnvelope.get(envelopeId) ?? []), label]);
+      }
+    }
+
+    return [...byEnvelope.entries()].map(([envelopeId, labels]) => ({ envelopeId, roleLabel: labels.join(' + ') }));
+  })();
+
   const renderSelect = (value: string, onValueChange: (value: string) => void) => (
     <Select value={value} onValueChange={onValueChange} disabled={isLoading}>
       <SelectTrigger>
@@ -531,6 +655,22 @@ function SigningSetup({
             Generate / refresh forms
           </Button>
         </div>
+
+        {attachedTemplates.length > 0 && (
+          <div className="space-y-4 border-t pt-4">
+            <p className="text-muted-foreground text-xs">
+              Map each saved template's fields to deal terms. Their labels are the broker's own shorthand, so this is
+              how prefill knows which field holds which value.
+            </p>
+            {attachedTemplates.map((entry) => (
+              <TemplateFieldMap
+                key={entry.envelopeId}
+                templateEnvelopeId={entry.envelopeId}
+                roleLabel={entry.roleLabel}
+              />
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

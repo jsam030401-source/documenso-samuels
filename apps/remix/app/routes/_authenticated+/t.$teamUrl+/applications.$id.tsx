@@ -666,11 +666,13 @@ function SigningSetup({
   applicationId,
   applicantTemplateId,
   cosignerTemplateId,
+  sharedApplicantTemplateId,
   onChanged,
 }: {
   applicationId: string;
   applicantTemplateId: string | null;
   cosignerTemplateId: string | null;
+  sharedApplicantTemplateId: string | null;
   onChanged: () => void;
 }) {
   const { toast } = useToast();
@@ -683,6 +685,10 @@ function SigningSetup({
 
   const [applicant, setApplicant] = useState(applicantTemplateId ?? NO_TEMPLATE);
   const [cosigner, setCosigner] = useState(cosignerTemplateId ?? NO_TEMPLATE);
+  const [sharedApplicant, setSharedApplicant] = useState(sharedApplicantTemplateId ?? NO_TEMPLATE);
+  const [applicantMode, setApplicantMode] = useState<'individual' | 'shared'>(
+    sharedApplicantTemplateId ? 'shared' : 'individual',
+  );
 
   const { mutateAsync: setTemplates, isPending: isSaving } = trpc.application.setApplicationTemplates.useMutation();
   const { mutateAsync: syncForms, isPending: isSyncing } = trpc.application.syncApplicationForms.useMutation();
@@ -691,8 +697,11 @@ function SigningSetup({
     try {
       await setTemplates({
         applicationId,
-        applicantTemplateId: applicant === NO_TEMPLATE ? null : applicant,
         cosignerTemplateId: cosigner === NO_TEMPLATE ? null : cosigner,
+        // Applicant signing is individual OR shared — mutually exclusive.
+        applicantTemplateId: applicantMode === 'individual' && applicant !== NO_TEMPLATE ? applicant : null,
+        sharedApplicantTemplateId:
+          applicantMode === 'shared' && sharedApplicant !== NO_TEMPLATE ? sharedApplicant : null,
       });
 
       onChanged();
@@ -731,6 +740,7 @@ function SigningSetup({
 
     for (const [label, envelopeId] of [
       ['Applicant form', applicantTemplateId],
+      ['Shared roommate form', sharedApplicantTemplateId],
       ['Co-signer form', cosignerTemplateId],
     ] as const) {
       if (envelopeId) {
@@ -762,16 +772,37 @@ function SigningSetup({
       <CardHeader>
         <CardTitle className="text-base">Signing forms</CardTitle>
         <CardDescription>
-          Attach a Documenso template (one signer — the tenant) per role. When someone joins, their form is created and
-          ready to sign in their portal — no email is sent. Use “Sync forms” to generate forms for people who joined
-          before a template was attached.
+          Attach a Documenso template per role. Applicants can each sign their own copy (Individual), or all roommates
+          can sign one shared document (Shared — any order, finalizes once everyone signs). When someone joins, their
+          form is ready to sign in their portal — no email is sent. Use “Generate / refresh forms” to (re)generate.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label>Applicant signing</Label>
+          <Select value={applicantMode} onValueChange={(value) => setApplicantMode(value as 'individual' | 'shared')}>
+            <SelectTrigger className="sm:w-80">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="individual">Individual — each applicant signs their own copy</SelectItem>
+              <SelectItem value="shared">Shared — all roommates sign one document</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label>Applicant form</Label>
-            {renderSelect(applicant, setApplicant)}
+            <Label>{applicantMode === 'shared' ? 'Shared roommate form' : 'Applicant form'}</Label>
+            {applicantMode === 'shared'
+              ? renderSelect(sharedApplicant, setSharedApplicant)
+              : renderSelect(applicant, setApplicant)}
+            {applicantMode === 'shared' && (
+              <p className="text-muted-foreground text-xs">
+                Use a template with one signature line per tenant (up to 6). Put any prefilled deal-term fields on the
+                first tenant’s section so they survive when unused lines are removed.
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <Label>Co-signer form</Label>
@@ -1135,6 +1166,7 @@ function ApplicationDetail({
       status: string;
       applicantTemplateId: string | null;
       cosignerTemplateId: string | null;
+      sharedApplicantTemplateId: string | null;
     };
     participants: Participant[];
   };
@@ -1180,6 +1212,7 @@ function ApplicationDetail({
         applicationId={application.id}
         applicantTemplateId={application.applicantTemplateId}
         cosignerTemplateId={application.cosignerTemplateId}
+        sharedApplicantTemplateId={application.sharedApplicantTemplateId}
         onChanged={onChanged}
       />
 

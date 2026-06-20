@@ -22,6 +22,7 @@ export const ZSetApplicationTemplatesRequestSchema = z.object({
   applicationId: z.string(),
   applicantTemplateId: z.string().nullable().optional(),
   cosignerTemplateId: z.string().nullable().optional(),
+  sharedApplicantTemplateId: z.string().nullable().optional(),
 });
 
 export type TSetApplicationTemplatesRequest = z.infer<typeof ZSetApplicationTemplatesRequestSchema>;

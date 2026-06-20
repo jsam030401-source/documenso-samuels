@@ -11,6 +11,7 @@ import type { DealTermKey } from '../../types/rental-deal-terms';
 import type { ApiRequestMetadata } from '../../universal/extract-request-metadata';
 import { sendDocument } from '../document/send-document';
 import { createDocumentFromTemplate } from '../template/create-document-from-template';
+import { ensureSharedApplicantForm } from './ensure-shared-applicant-form';
 import { buildPrefillFields } from './prefill';
 import { internalRentalRequestMetadata } from './request-metadata';
 
@@ -60,6 +61,7 @@ export const ensureParticipantForms = async ({
           status: true,
           applicantTemplateId: true,
           cosignerTemplateId: true,
+          sharedApplicantTemplateId: true,
           street: true,
           unitNumber: true,
           city: true,
@@ -90,6 +92,18 @@ export const ensureParticipantForms = async ({
 
   if (CLOSED_STATUSES.includes(application.status)) {
     return false;
+  }
+
+  // Shared multi-signer applicants: every roommate signs ONE document. Delegate to the
+  // application-level provisioner (idempotent) instead of making a per-person copy.
+  if (application.sharedApplicantTemplateId && participant.role === ParticipantRole.APPLICANT) {
+    const result = await ensureSharedApplicantForm({
+      applicationId: participant.applicationId,
+      requestMetadata,
+      refresh,
+    });
+
+    return result.provisioned;
   }
 
   const templateEnvelopeId =
@@ -225,15 +239,38 @@ export const ensureApplicationForms = async ({
   teamId,
   requestMetadata,
 }: EnsureApplicationFormsOptions): Promise<{ provisioned: number; participants: number }> => {
+  const application = await prisma.rentalApplication.findFirst({
+    where: { id: applicationId, teamId },
+    select: { id: true, sharedApplicantTemplateId: true },
+  });
+
+  if (!application) {
+    return { provisioned: 0, participants: 0 };
+  }
+
   const participants = await prisma.applicationParticipant.findMany({
-    where: { applicationId, application: { teamId } },
-    select: { id: true },
+    where: { applicationId },
+    select: { id: true, role: true },
   });
 
   let provisioned = 0;
 
+  // Shared mode: provision the one shared applicant document once; co-signers still get
+  // their individual forms. Otherwise every participant gets their own form.
+  const individualParticipants = application.sharedApplicantTemplateId
+    ? participants.filter((participant) => participant.role === ParticipantRole.COSIGNER)
+    : participants;
+
+  if (application.sharedApplicantTemplateId) {
+    const shared = await ensureSharedApplicantForm({ applicationId, requestMetadata, refresh: true });
+
+    if (shared.provisioned) {
+      provisioned += 1;
+    }
+  }
+
   // Serial: createDocumentFromTemplate increments a shared id and asserts limits.
-  for (const participant of participants) {
+  for (const participant of individualParticipants) {
     const created = await ensureParticipantForms({
       participantId: participant.id,
       requestMetadata,

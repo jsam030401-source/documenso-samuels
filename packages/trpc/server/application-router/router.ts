@@ -100,6 +100,7 @@ export const applicationRouter = router({
         applicationId: input.applicationId,
         applicantTemplateId: input.applicantTemplateId,
         cosignerTemplateId: input.cosignerTemplateId,
+        sharedApplicantTemplateId: input.sharedApplicantTemplateId,
       });
     }),
 

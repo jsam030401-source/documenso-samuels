@@ -131,6 +131,7 @@ export const getRentalApplication = async ({ id, teamId }: GetRentalApplicationO
       createdAt: application.createdAt,
       applicantTemplateId: application.applicantTemplateId,
       cosignerTemplateId: application.cosignerTemplateId,
+      sharedApplicantTemplateId: application.sharedApplicantTemplateId,
     },
     participants,
   };

@@ -1,5 +1,5 @@
 import { prisma } from '@documenso/prisma';
-import { EnvelopeType } from '@prisma/client';
+import { EnvelopeType, type Prisma } from '@prisma/client';
 
 import { AppError, AppErrorCode } from '../../errors/app-error';
 
@@ -12,6 +12,12 @@ export type SetApplicationTemplatesOptions = {
    */
   applicantTemplateId?: string | null;
   cosignerTemplateId?: string | null;
+  /**
+   * Multi-signer "shared" applicant template (1–6 signer slots) — every applicant
+   * roommate signs this one document. Mutually exclusive with `applicantTemplateId`
+   * (setting one clears the other). `null` clears; `undefined` leaves unchanged.
+   */
+  sharedApplicantTemplateId?: string | null;
 };
 
 /**
@@ -25,6 +31,7 @@ export const setApplicationTemplates = async ({
   applicationId,
   applicantTemplateId,
   cosignerTemplateId,
+  sharedApplicantTemplateId,
 }: SetApplicationTemplatesOptions) => {
   const application = await prisma.rentalApplication.findFirst({
     where: { id: applicationId, teamId },
@@ -59,6 +66,28 @@ export const setApplicationTemplates = async ({
     }
   };
 
+  // The shared roommate template carries one signer slot per tenant line (1–6).
+  const assertSharedTemplate = async (envelopeId: string) => {
+    const template = await prisma.envelope.findFirst({
+      where: { id: envelopeId, type: EnvelopeType.TEMPLATE, teamId },
+      select: { _count: { select: { recipients: true } } },
+    });
+
+    if (!template) {
+      throw new AppError(AppErrorCode.NOT_FOUND, { message: 'Template not found in this team' });
+    }
+
+    const slots = template._count.recipients;
+
+    if (slots < 1 || slots > 6) {
+      throw new AppError(AppErrorCode.INVALID_BODY, {
+        message:
+          'A shared roommate template must have 1–6 signer slots (one per tenant signature line). ' +
+          `This template has ${slots}.`,
+      });
+    }
+  };
+
   if (applicantTemplateId) {
     await assertTeamTemplate(applicantTemplateId);
   }
@@ -67,17 +96,32 @@ export const setApplicationTemplates = async ({
     await assertTeamTemplate(cosignerTemplateId);
   }
 
+  if (sharedApplicantTemplateId) {
+    await assertSharedTemplate(sharedApplicantTemplateId);
+  }
+
+  // Applicant individual vs shared signing are mutually exclusive — setting one clears the other.
+  const data: Prisma.RentalApplicationUpdateInput = {
+    // `undefined` is skipped by Prisma; `null` clears the column.
+    applicantTemplateId,
+    cosignerTemplateId,
+    sharedApplicantTemplateId,
+  };
+
+  if (sharedApplicantTemplateId) {
+    data.applicantTemplateId = null;
+  } else if (applicantTemplateId) {
+    data.sharedApplicantTemplateId = null;
+  }
+
   return await prisma.rentalApplication.update({
     where: { id: application.id },
-    data: {
-      // `undefined` is skipped by Prisma; `null` clears the column.
-      applicantTemplateId,
-      cosignerTemplateId,
-    },
+    data,
     select: {
       id: true,
       applicantTemplateId: true,
       cosignerTemplateId: true,
+      sharedApplicantTemplateId: true,
     },
   });
 };

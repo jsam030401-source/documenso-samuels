@@ -1,9 +1,11 @@
+import { composeAddress } from '@documenso/lib/server-only/rental/address';
 import { createRentalApplication } from '@documenso/lib/server-only/rental/create-rental-application';
 import { ensureApplicationForms } from '@documenso/lib/server-only/rental/ensure-participant-forms';
 import { findRentalApplications } from '@documenso/lib/server-only/rental/find-rental-applications';
 import { generateApplicantPacket } from '@documenso/lib/server-only/rental/generate-applicant-packet';
 import { getRentalApplication } from '@documenso/lib/server-only/rental/get-rental-application';
 import { setApplicationTemplates } from '@documenso/lib/server-only/rental/set-application-templates';
+import { updateApplicationTerms } from '@documenso/lib/server-only/rental/update-application-terms';
 import { getTeamById } from '@documenso/lib/server-only/team/get-team';
 
 import { authenticatedProcedure, router } from '../trpc';
@@ -13,6 +15,7 @@ import {
   ZGetApplicationRequestSchema,
   ZSetApplicationTemplatesRequestSchema,
   ZSyncApplicationFormsRequestSchema,
+  ZUpdateApplicationTermsRequestSchema,
 } from './schema';
 
 export const applicationRouter = router({
@@ -32,7 +35,7 @@ export const applicationRouter = router({
       slug: application.slug,
       title: application.title,
       status: application.status,
-      unitAddress: application.unitAddress,
+      unitAddress: composeAddress(application),
       rent: application.rent ? Number(application.rent) : null,
       moveInDate: application.moveInDate,
       createdAt: application.createdAt,
@@ -56,19 +59,19 @@ export const applicationRouter = router({
    */
   createApplication: authenticatedProcedure.input(ZCreateApplicationRequestSchema).mutation(async ({ input, ctx }) => {
     const { teamId, user } = ctx;
-    const { title, unitAddress, rent, moveInDate, applicantTemplateId, cosignerTemplateId } = input;
+    const { title, street, unitNumber, city, rent, moveInDate } = input;
 
-    ctx.logger.info({ input: { title, unitAddress } });
+    ctx.logger.info({ input: { title, street } });
 
     const application = await createRentalApplication({
       userId: user.id,
       teamId,
       title,
-      unitAddress,
+      street,
+      unitNumber,
+      city,
       rent,
       moveInDate: moveInDate ? new Date(moveInDate) : undefined,
-      applicantTemplateId,
-      cosignerTemplateId,
     });
 
     return { id: application.id, slug: application.slug };
@@ -124,5 +127,21 @@ export const applicationRouter = router({
         applicationId: input.applicationId,
         applicantParticipantId: input.participantId,
       });
+    }),
+
+  /**
+   * @private
+   */
+  updateApplicationTerms: authenticatedProcedure
+    .input(ZUpdateApplicationTermsRequestSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { teamId, user } = ctx;
+      const { applicationId, ...data } = input;
+
+      await getTeamById({ userId: user.id, teamId });
+
+      await updateApplicationTerms({ teamId, applicationId, data });
+
+      return { success: true };
     }),
 });

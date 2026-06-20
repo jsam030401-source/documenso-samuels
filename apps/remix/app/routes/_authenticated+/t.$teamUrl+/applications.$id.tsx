@@ -2,13 +2,17 @@ import { getOptionalSession } from '@documenso/auth/server/lib/utils/get-session
 import { uploadAdminChecklistFile } from '@documenso/lib/server-only/rental/upload-admin-checklist-file';
 import { getTeamByUrl } from '@documenso/lib/server-only/team/get-team';
 import { trpc } from '@documenso/trpc/react';
+import { cn } from '@documenso/ui/lib/utils';
 import { Badge } from '@documenso/ui/primitives/badge';
 import { Button } from '@documenso/ui/primitives/button';
+import { Calendar } from '@documenso/ui/primitives/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@documenso/ui/primitives/card';
+import { Input } from '@documenso/ui/primitives/input';
 import { Label } from '@documenso/ui/primitives/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@documenso/ui/primitives/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@documenso/ui/primitives/select';
 import { useToast } from '@documenso/ui/primitives/use-toast';
-import { ArrowLeft, Download, ExternalLink, Loader2, Package, RefreshCw, Upload } from 'lucide-react';
+import { ArrowLeft, CalendarIcon, Download, ExternalLink, Loader2, Package, RefreshCw, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useFetcher, useParams } from 'react-router';
 
@@ -524,9 +528,258 @@ function SigningSetup({
           </Button>
           <Button type="button" variant="outline" onClick={onSync} loading={isSyncing}>
             <RefreshCw className="size-4" />
-            Sync forms
+            Generate / refresh forms
           </Button>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+type ApplicationTerms = {
+  street: string | null;
+  unitNumber: string | null;
+  city: string | null;
+  rent: number | null;
+  moveInDate: Date | string | null;
+  leaseTermMonths: number | null;
+  leaseStartDate: Date | string | null;
+  leaseEndDate: Date | string | null;
+  petsAllowed: boolean | null;
+  lastMonthRent: number | null;
+  securityDeposit: number | null;
+  brokerFee: number | null;
+  lockChangeFee: number | null;
+  applicationFee: number | null;
+  todaysDeposit: number | null;
+  balanceDue: number | null;
+};
+
+const toDate = (value: Date | string | null) => (value ? new Date(value) : undefined);
+
+function DatePickerField({
+  value,
+  onChange,
+}: {
+  value: Date | undefined;
+  onChange: (value: Date | undefined) => void;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className={cn('w-full justify-start text-left font-normal', !value && 'text-muted-foreground')}
+        >
+          <CalendarIcon className="mr-2 size-4" />
+          {value
+            ? value.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : 'Pick a date'}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar mode="single" selected={value} onSelect={onChange} />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function MoneyField({
+  id,
+  label,
+  value,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        type="number"
+        min="0"
+        step="0.01"
+        inputMode="decimal"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="0.00"
+      />
+    </div>
+  );
+}
+
+function DealTermsCard({
+  application,
+  onChanged,
+}: {
+  application: ApplicationTerms & { id: string };
+  onChanged: () => void;
+}) {
+  const { toast } = useToast();
+  const { mutateAsync: saveTerms, isPending } = trpc.application.updateApplicationTerms.useMutation();
+
+  const [street, setStreet] = useState(application.street ?? '');
+  const [unitNumber, setUnitNumber] = useState(application.unitNumber ?? '');
+  const [city, setCity] = useState(application.city ?? '');
+  const [rent, setRent] = useState(application.rent?.toString() ?? '');
+  const [leaseTermMonths, setLeaseTermMonths] = useState(application.leaseTermMonths?.toString() ?? '');
+  const [moveInDate, setMoveInDate] = useState<Date | undefined>(toDate(application.moveInDate));
+  const [leaseStartDate, setLeaseStartDate] = useState<Date | undefined>(toDate(application.leaseStartDate));
+  const [leaseEndDate, setLeaseEndDate] = useState<Date | undefined>(toDate(application.leaseEndDate));
+  const [pets, setPets] = useState(application.petsAllowed === null ? 'unset' : application.petsAllowed ? 'yes' : 'no');
+  const [lastMonthRent, setLastMonthRent] = useState(application.lastMonthRent?.toString() ?? '');
+  const [securityDeposit, setSecurityDeposit] = useState(application.securityDeposit?.toString() ?? '');
+  const [brokerFee, setBrokerFee] = useState(application.brokerFee?.toString() ?? '');
+  const [lockChangeFee, setLockChangeFee] = useState(application.lockChangeFee?.toString() ?? '');
+  const [applicationFee, setApplicationFee] = useState(application.applicationFee?.toString() ?? '');
+  const [todaysDeposit, setTodaysDeposit] = useState(application.todaysDeposit?.toString() ?? '');
+  const [balanceDue, setBalanceDue] = useState(application.balanceDue?.toString() ?? '');
+
+  const onSave = async () => {
+    const money = (value: string) => {
+      if (value.trim() === '') {
+        return null;
+      }
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+    const isoDate = (value: Date | undefined) => (value ? value.toISOString() : null);
+    const term = leaseTermMonths.trim() === '' ? null : Math.trunc(Number(leaseTermMonths));
+
+    try {
+      await saveTerms({
+        applicationId: application.id,
+        street: street.trim() || null,
+        unitNumber: unitNumber.trim() || null,
+        city: city.trim() || null,
+        rent: money(rent),
+        moveInDate: isoDate(moveInDate),
+        leaseTermMonths: term !== null && Number.isFinite(term) ? term : null,
+        leaseStartDate: isoDate(leaseStartDate),
+        leaseEndDate: isoDate(leaseEndDate),
+        petsAllowed: pets === 'unset' ? null : pets === 'yes',
+        lastMonthRent: money(lastMonthRent),
+        securityDeposit: money(securityDeposit),
+        brokerFee: money(brokerFee),
+        lockChangeFee: money(lockChangeFee),
+        applicationFee: money(applicationFee),
+        todaysDeposit: money(todaysDeposit),
+        balanceDue: money(balanceDue),
+      });
+
+      onChanged();
+      toast({
+        title: 'Deal terms saved',
+        description: 'Use "Generate / refresh forms" to push them into unsigned forms.',
+      });
+    } catch {
+      toast({ title: 'Could not save terms', description: 'Please try again.', variant: 'destructive' });
+    }
+  };
+
+  return (
+    <Card className="mb-6">
+      <CardHeader>
+        <CardTitle className="text-base">Deal terms</CardTitle>
+        <CardDescription>
+          Fill these once; they prefill (read-only) into every tenant's signing form by matching field labels. Co-tenant
+          names and the tenant count fill automatically from who joins.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="terms-street">Street address</Label>
+          <Input
+            id="terms-street"
+            value={street}
+            onChange={(e) => setStreet(e.target.value)}
+            placeholder="123 Main St"
+          />
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="terms-unit">Unit #</Label>
+            <Input id="terms-unit" value={unitNumber} onChange={(e) => setUnitNumber(e.target.value)} placeholder="2" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="terms-city">City</Label>
+            <Input id="terms-city" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Boston" />
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <MoneyField id="terms-rent" label="Monthly rent" value={rent} onChange={setRent} />
+          <div className="space-y-2">
+            <Label htmlFor="terms-term">Lease term (months)</Label>
+            <Input
+              id="terms-term"
+              type="number"
+              min="0"
+              value={leaseTermMonths}
+              onChange={(e) => setLeaseTermMonths(e.target.value)}
+              placeholder="12"
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-2">
+            <Label>Move-in date</Label>
+            <DatePickerField value={moveInDate} onChange={setMoveInDate} />
+          </div>
+          <div className="space-y-2">
+            <Label>Lease start</Label>
+            <DatePickerField value={leaseStartDate} onChange={setLeaseStartDate} />
+          </div>
+          <div className="space-y-2">
+            <Label>Lease end</Label>
+            <DatePickerField value={leaseEndDate} onChange={setLeaseEndDate} />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Pets</Label>
+          <Select value={pets} onValueChange={setPets}>
+            <SelectTrigger className="sm:w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="unset">Not set</SelectItem>
+              <SelectItem value="yes">Yes</SelectItem>
+              <SelectItem value="no">No</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <MoneyField
+            id="terms-lastmonth"
+            label="Last month's rent"
+            value={lastMonthRent}
+            onChange={setLastMonthRent}
+          />
+          <MoneyField
+            id="terms-security"
+            label="Security deposit"
+            value={securityDeposit}
+            onChange={setSecurityDeposit}
+          />
+          <MoneyField id="terms-broker" label="Broker fee" value={brokerFee} onChange={setBrokerFee} />
+          <MoneyField id="terms-lock" label="Lock-change fee" value={lockChangeFee} onChange={setLockChangeFee} />
+          <MoneyField id="terms-appfee" label="Application fee" value={applicationFee} onChange={setApplicationFee} />
+          <MoneyField id="terms-today" label="Today's deposit" value={todaysDeposit} onChange={setTodaysDeposit} />
+          <MoneyField id="terms-balance" label="Balance due" value={balanceDue} onChange={setBalanceDue} />
+        </div>
+
+        <Button type="button" onClick={onSave} loading={isPending}>
+          Save deal terms
+        </Button>
       </CardContent>
     </Card>
   );
@@ -539,13 +792,11 @@ function ApplicationDetail({
   onChanged,
 }: {
   data: {
-    application: {
+    application: ApplicationTerms & {
       id: string;
       slug: string;
       title: string | null;
       unitAddress: string | null;
-      rent: number | null;
-      moveInDate: Date | string | null;
       status: string;
       applicantTemplateId: string | null;
       cosignerTemplateId: string | null;
@@ -587,6 +838,8 @@ function ApplicationDetail({
           </a>
         </div>
       </div>
+
+      <DealTermsCard application={application} onChanged={onChanged} />
 
       <SigningSetup
         applicationId={application.id}

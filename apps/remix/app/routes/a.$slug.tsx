@@ -1,3 +1,4 @@
+import { composeAddress } from '@documenso/lib/server-only/rental/address';
 import { getRentalApplicationBySlug } from '@documenso/lib/server-only/rental/get-application-by-slug';
 import { getPortalData } from '@documenso/lib/server-only/rental/get-portal-data';
 import { joinApplication } from '@documenso/lib/server-only/rental/join-application';
@@ -46,7 +47,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   return {
     view: 'join' as const,
     join: {
-      title: application.title ?? application.unitAddress ?? 'Rental Application',
+      title: application.title ?? composeAddress(application) ?? 'Rental Application',
       closed: CLOSED_STATUSES.includes(application.status),
       applicants: application.participants.map((participant) => ({
         id: participant.id,

@@ -8,35 +8,37 @@ export type CreateRentalApplicationOptions = {
   userId: number;
   teamId: number;
   title?: string;
-  unitAddress?: string;
+  street?: string;
+  unitNumber?: string;
+  city?: string;
   rent?: number;
   moveInDate?: Date;
-  applicantTemplateId?: string;
-  cosignerTemplateId?: string;
 };
 
 /**
  * Create a rental application scoped to a team. Also provisions a Documenso
  * Folder to group the signing envelopes this application will later generate.
- * Returns the application (its `slug` is the single shareable link).
+ * Returns the application (its `slug` is the single shareable link). Full deal
+ * terms are filled in afterwards via `updateApplicationTerms`.
  */
 export const createRentalApplication = async ({
   userId,
   teamId,
   title,
-  unitAddress,
+  street,
+  unitNumber,
+  city,
   rent,
   moveInDate,
-  applicantTemplateId,
-  cosignerTemplateId,
 }: CreateRentalApplicationOptions) => {
   const trimmedTitle = title?.trim() || undefined;
+  const trimmedStreet = street?.trim() || undefined;
 
   // createFolder also verifies the user has access to the team.
   const folder = await createFolder({
     userId,
     teamId,
-    name: trimmedTitle ?? 'Rental application',
+    name: trimmedTitle ?? trimmedStreet ?? 'Rental application',
   });
 
   // slug is nanoid(8); retry on the (extremely unlikely) unique collision.
@@ -49,11 +51,11 @@ export const createRentalApplication = async ({
           folderId: folder.id,
           slug: nanoid(8),
           title: trimmedTitle,
-          unitAddress: unitAddress?.trim() || undefined,
+          street: trimmedStreet,
+          unitNumber: unitNumber?.trim() || undefined,
+          city: city?.trim() || undefined,
           rent,
           moveInDate,
-          applicantTemplateId,
-          cosignerTemplateId,
         },
       });
     } catch (error) {

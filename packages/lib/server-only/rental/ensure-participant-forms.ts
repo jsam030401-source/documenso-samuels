@@ -1,9 +1,17 @@
 import { prisma } from '@documenso/prisma';
-import { EnvelopeType, ParticipantRole, RentalApplicationStatus } from '@prisma/client';
+import {
+  DocumentStatus,
+  EnvelopeType,
+  FieldType,
+  ParticipantRole,
+  RentalApplicationStatus,
+  SigningStatus,
+} from '@prisma/client';
 
 import type { ApiRequestMetadata } from '../../universal/extract-request-metadata';
 import { sendDocument } from '../document/send-document';
 import { createDocumentFromTemplate } from '../template/create-document-from-template';
+import { buildPrefillFields } from './prefill';
 import { internalRentalRequestMetadata } from './request-metadata';
 
 const CLOSED_STATUSES: RentalApplicationStatus[] = [
@@ -15,26 +23,25 @@ const CLOSED_STATUSES: RentalApplicationStatus[] = [
 export type EnsureParticipantFormsOptions = {
   participantId: string;
   requestMetadata?: ApiRequestMetadata;
+  /**
+   * When true (admin "Generate / refresh forms"), an existing UNSIGNED form is
+   * deleted and recreated so it picks up the latest deal terms. Signed forms are
+   * always left frozen. When false (join / portal-load), an existing form is left
+   * untouched and only missing ones are created.
+   */
+  refresh?: boolean;
 };
 
 /**
- * Idempotently provision the signing envelope for one participant from the role
- * template attached to their application. Safe to call repeatedly and from any
- * order of events (template attached after someone joined, co-signer joined
- * before the applicant, an old participant predating Phase 2) — that is what
- * makes the portal "self-healing".
- *
- * The envelope is generated as the application's `ownerUserId` (participants are
- * not Documenso users), filed in the application's Folder, and "sent" with
- * `sendEmail: false` so the signing token goes live without emailing anyone
- * (the tenant reaches it from their portal — the manual-share model). We assume
- * a single-signer role template: the participant IS the template's signer.
- *
- * Returns `true` if it created a new envelope this call, `false` otherwise.
+ * Idempotently provision (and optionally refresh) the signing envelope for one
+ * participant from the role template, prefilling the broker's deal terms +
+ * auto-derived co-tenant fields. See EnsureParticipantFormsOptions for the
+ * create-vs-refresh behaviour. Returns true if it created an envelope this call.
  */
 export const ensureParticipantForms = async ({
   participantId,
   requestMetadata,
+  refresh = false,
 }: EnsureParticipantFormsOptions): Promise<boolean> => {
   const participant = await prisma.applicationParticipant.findUnique({
     where: { id: participantId },
@@ -44,6 +51,7 @@ export const ensureParticipantForms = async ({
       name: true,
       email: true,
       recipientIds: true,
+      applicationId: true,
       application: {
         select: {
           teamId: true,
@@ -52,18 +60,28 @@ export const ensureParticipantForms = async ({
           status: true,
           applicantTemplateId: true,
           cosignerTemplateId: true,
+          street: true,
+          unitNumber: true,
+          city: true,
+          rent: true,
+          moveInDate: true,
+          leaseTermMonths: true,
+          leaseStartDate: true,
+          leaseEndDate: true,
+          petsAllowed: true,
+          lastMonthRent: true,
+          securityDeposit: true,
+          brokerFee: true,
+          lockChangeFee: true,
+          applicationFee: true,
+          todaysDeposit: true,
+          balanceDue: true,
         },
       },
     },
   });
 
   if (!participant) {
-    return false;
-  }
-
-  // Already provisioned. (Read guard; the conditional updateMany below closes
-  // most of the remaining race for the rare double-load.)
-  if (participant.recipientIds.length > 0) {
     return false;
   }
 
@@ -81,21 +99,67 @@ export const ensureParticipantForms = async ({
     return false;
   }
 
-  // Resolve the template's signer recipient. A rental form template has exactly
-  // one signer (the tenant — enforced at attach time); we override it with the
-  // participant's identity.
+  // Existing form handling.
+  if (participant.recipientIds.length > 0) {
+    if (!refresh) {
+      return false;
+    }
+
+    const existing = await prisma.recipient.findMany({
+      where: { id: { in: participant.recipientIds } },
+      select: { signingStatus: true, envelopeId: true, envelope: { select: { status: true } } },
+    });
+
+    const isSigned = existing.some(
+      (recipient) =>
+        recipient.signingStatus === SigningStatus.SIGNED || recipient.envelope.status === DocumentStatus.COMPLETED,
+    );
+
+    // Signed forms are frozen — never regenerate them.
+    if (isSigned) {
+      return false;
+    }
+
+    // Drop the stale unsigned envelope(s) so we can recreate with current terms.
+    const envelopeIds = [...new Set(existing.map((recipient) => recipient.envelopeId))];
+
+    if (envelopeIds.length > 0) {
+      await prisma.envelope.deleteMany({ where: { id: { in: envelopeIds } } });
+    }
+
+    await prisma.applicationParticipant.update({ where: { id: participant.id }, data: { recipientIds: [] } });
+  }
+
+  // Resolve the template's single signer (enforced at attach time).
   const template = await prisma.envelope.findFirst({
     where: { id: templateEnvelopeId, type: EnvelopeType.TEMPLATE, teamId: application.teamId },
     select: { recipients: { orderBy: { id: 'asc' }, select: { id: true } } },
   });
 
   if (!template || template.recipients.length !== 1) {
-    // Template deleted, or later edited to have 0 / >1 recipients. Skip rather
-    // than guess which recipient is the tenant — never 500 a portal load.
     return false;
   }
 
   const templateRecipientId = template.recipients[0].id;
+
+  // Prefill the deal terms + auto-derived co-tenant fields.
+  const [textFields, allParticipants] = await Promise.all([
+    prisma.field.findMany({
+      where: { envelopeId: templateEnvelopeId, type: FieldType.TEXT },
+      select: { id: true, fieldMeta: true },
+    }),
+    prisma.applicationParticipant.findMany({
+      where: { applicationId: participant.applicationId },
+      select: { name: true },
+      orderBy: { createdAt: 'asc' },
+    }),
+  ]);
+
+  const prefillFields = buildPrefillFields(textFields, {
+    application,
+    participantNames: allParticipants.map((entry) => entry.name),
+  });
+
   const metadata = requestMetadata ?? internalRentalRequestMetadata();
 
   const envelope = await createDocumentFromTemplate({
@@ -104,15 +168,12 @@ export const ensureParticipantForms = async ({
     teamId: application.teamId,
     folderId: application.folderId ?? undefined,
     recipients: [{ id: templateRecipientId, name: participant.name, email: participant.email }],
+    prefillFields,
     requestMetadata: metadata,
   });
 
-  // Make the token live without emailing — the tenant signs from their portal.
-  // If sending fails (e.g. disabled owner, rate limit), roll the envelope back so
-  // we don't leave an orphan draft and don't store recipientIds — the next attempt
-  // then starts clean instead of stacking up a new envelope every portal load.
-  // (createDocumentFromTemplate already fired its webhooks; on self-host with no
-  // webhooks that's a non-issue. A couple of orphan DocumentData rows may remain.)
+  // Make the token live without emailing. If sending fails, roll the envelope back
+  // so we don't leave an orphan draft and the next attempt starts clean.
   try {
     await sendDocument({
       id: { type: 'envelopeId', id: envelope.id },
@@ -126,14 +187,11 @@ export const ensureParticipantForms = async ({
     throw error;
   }
 
-  // Persist the recipient id(s) we assigned to this participant.
   const recipientIds = envelope.recipients
     .filter((recipient) => recipient.email.toLowerCase() === participant.email.toLowerCase())
     .map((recipient) => recipient.id);
 
-  // Conditional write: only claim if still un-provisioned, so two simultaneous
-  // portal loads don't both attach. If a concurrent call won, we leave the
-  // (rare) extra draft envelope in the folder for the admin to clean up.
+  // Conditional claim so two simultaneous loads don't both attach.
   const claimed = await prisma.applicationParticipant.updateMany({
     where: { id: participant.id, recipientIds: { isEmpty: true } },
     data: { recipientIds },
@@ -149,9 +207,9 @@ export type EnsureApplicationFormsOptions = {
 };
 
 /**
- * Admin "Sync forms": provision missing signing envelopes for every participant
- * of an application (team-scoped). Idempotent — only participants without an
- * envelope get one. Returns how many were newly provisioned.
+ * Admin "Generate / refresh forms": create missing forms AND refresh unsigned
+ * ones with the latest deal terms (signed forms stay frozen), for every
+ * participant of an application (team-scoped). Returns how many were (re)created.
  */
 export const ensureApplicationForms = async ({
   applicationId,
@@ -165,10 +223,13 @@ export const ensureApplicationForms = async ({
 
   let provisioned = 0;
 
-  // Serial on purpose: createDocumentFromTemplate increments a shared document id
-  // and asserts org limits, so we avoid hammering it in parallel.
+  // Serial: createDocumentFromTemplate increments a shared id and asserts limits.
   for (const participant of participants) {
-    const created = await ensureParticipantForms({ participantId: participant.id, requestMetadata });
+    const created = await ensureParticipantForms({
+      participantId: participant.id,
+      requestMetadata,
+      refresh: true,
+    });
 
     if (created) {
       provisioned += 1;

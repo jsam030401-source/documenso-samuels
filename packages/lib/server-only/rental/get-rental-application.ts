@@ -1,8 +1,12 @@
 import { prisma } from '@documenso/prisma';
-import { SigningStatus } from '@prisma/client';
+import { type Prisma, SigningStatus } from '@prisma/client';
 
+import { composeAddress } from './address';
 import { ADMIN_ONLY_CHECKLIST_TYPES, isAdminOnlyChecklistType, requiredChecklist } from './checklist';
 import { getParticipantProgress } from './progress';
+
+// Decimal | null -> number | null (preserves 0, unlike a truthy check).
+const money = (value: Prisma.Decimal | null) => (value === null ? null : Number(value));
 
 export type GetRentalApplicationOptions = {
   id: string;
@@ -104,9 +108,24 @@ export const getRentalApplication = async ({ id, teamId }: GetRentalApplicationO
       id: application.id,
       slug: application.slug,
       title: application.title,
-      unitAddress: application.unitAddress,
-      rent: application.rent ? Number(application.rent) : null,
+      // Composed display line + the raw split parts for editing.
+      unitAddress: composeAddress(application),
+      street: application.street,
+      unitNumber: application.unitNumber,
+      city: application.city,
+      rent: money(application.rent),
       moveInDate: application.moveInDate,
+      leaseTermMonths: application.leaseTermMonths,
+      leaseStartDate: application.leaseStartDate,
+      leaseEndDate: application.leaseEndDate,
+      petsAllowed: application.petsAllowed,
+      lastMonthRent: money(application.lastMonthRent),
+      securityDeposit: money(application.securityDeposit),
+      brokerFee: money(application.brokerFee),
+      lockChangeFee: money(application.lockChangeFee),
+      applicationFee: money(application.applicationFee),
+      todaysDeposit: money(application.todaysDeposit),
+      balanceDue: money(application.balanceDue),
       status: application.status,
       createdAt: application.createdAt,
       applicantTemplateId: application.applicantTemplateId,

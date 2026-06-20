@@ -1,6 +1,7 @@
 import { prisma } from '@documenso/prisma';
 import { SigningStatus } from '@prisma/client';
 
+import { composeAddress } from './address';
 import { isAdminOnlyChecklistType, requiredChecklist } from './checklist';
 import { ensureParticipantForms } from './ensure-participant-forms';
 import { getParticipantProgress } from './progress';
@@ -105,7 +106,7 @@ export const getPortalData = async ({ accessToken }: GetPortalDataOptions) => {
     application: {
       slug: application.slug,
       title: application.title,
-      unitAddress: application.unitAddress,
+      unitAddress: composeAddress(application),
       rent: application.rent ? Number(application.rent) : null,
       moveInDate: application.moveInDate,
       status: application.status,

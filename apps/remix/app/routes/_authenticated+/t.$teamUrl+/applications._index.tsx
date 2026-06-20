@@ -1,9 +1,13 @@
 import { trpc } from '@documenso/trpc/react';
+import { cn } from '@documenso/ui/lib/utils';
 import { Button } from '@documenso/ui/primitives/button';
+import { Calendar } from '@documenso/ui/primitives/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@documenso/ui/primitives/card';
 import { Input } from '@documenso/ui/primitives/input';
 import { Label } from '@documenso/ui/primitives/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@documenso/ui/primitives/popover';
 import { useToast } from '@documenso/ui/primitives/use-toast';
+import { CalendarIcon } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 
@@ -21,9 +25,11 @@ export default function ApplicationsPage() {
   const { mutateAsync: createApplication, isPending } = trpc.application.createApplication.useMutation();
 
   const [title, setTitle] = useState('');
-  const [unitAddress, setUnitAddress] = useState('');
+  const [street, setStreet] = useState('');
+  const [unitNumber, setUnitNumber] = useState('');
+  const [city, setCity] = useState('');
   const [rent, setRent] = useState('');
-  const [moveInDate, setMoveInDate] = useState('');
+  const [moveInDate, setMoveInDate] = useState<Date | undefined>(undefined);
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
 
@@ -33,15 +39,19 @@ export default function ApplicationsPage() {
     try {
       await createApplication({
         title: title.trim() || undefined,
-        unitAddress: unitAddress.trim() || undefined,
+        street: street.trim() || undefined,
+        unitNumber: unitNumber.trim() || undefined,
+        city: city.trim() || undefined,
         rent: rent ? Number(rent) : undefined,
-        moveInDate: moveInDate ? new Date(moveInDate).toISOString() : undefined,
+        moveInDate: moveInDate ? moveInDate.toISOString() : undefined,
       });
 
       setTitle('');
-      setUnitAddress('');
+      setStreet('');
+      setUnitNumber('');
+      setCity('');
       setRent('');
-      setMoveInDate('');
+      setMoveInDate(undefined);
 
       await refetch();
 
@@ -87,13 +97,29 @@ export default function ApplicationsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="unitAddress">Unit address</Label>
+              <Label htmlFor="street">Street address</Label>
               <Input
-                id="unitAddress"
-                value={unitAddress}
-                onChange={(event) => setUnitAddress(event.target.value)}
-                placeholder="123 Main St, Boston, MA"
+                id="street"
+                value={street}
+                onChange={(event) => setStreet(event.target.value)}
+                placeholder="123 Main St"
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="unitNumber">Unit #</Label>
+                <Input
+                  id="unitNumber"
+                  value={unitNumber}
+                  onChange={(event) => setUnitNumber(event.target.value)}
+                  placeholder="2"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="city">City</Label>
+                <Input id="city" value={city} onChange={(event) => setCity(event.target.value)} placeholder="Boston" />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -111,12 +137,27 @@ export default function ApplicationsPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="moveInDate">Move-in date</Label>
-                <Input
-                  id="moveInDate"
-                  type="date"
-                  value={moveInDate}
-                  onChange={(event) => setMoveInDate(event.target.value)}
-                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      id="moveInDate"
+                      type="button"
+                      variant="outline"
+                      className={cn(
+                        'w-full justify-start text-left font-normal',
+                        !moveInDate && 'text-muted-foreground',
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 size-4" />
+                      {moveInDate
+                        ? moveInDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                        : 'Pick a date'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={moveInDate} onSelect={setMoveInDate} />
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
 

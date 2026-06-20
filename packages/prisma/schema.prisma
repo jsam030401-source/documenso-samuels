@@ -1322,9 +1322,25 @@ model RentalApplication {
   title  String?
   status RentalApplicationStatus @default(OPEN)
 
-  unitAddress String?
-  rent        Decimal?
+  unitAddress String? // DEPRECATED: kept for back-compat; data migrated into `street`. Use street/unitNumber/city.
+  rent        Decimal? // monthly / first month's rent
   moveInDate  DateTime?
+
+  // Deal terms (broker-entered) — prefilled into the signing forms by field label.
+  street          String?
+  unitNumber      String?
+  city            String?
+  leaseTermMonths Int?
+  leaseStartDate  DateTime?
+  leaseEndDate    DateTime?
+  petsAllowed     Boolean?
+  lastMonthRent   Decimal?
+  securityDeposit Decimal?
+  brokerFee       Decimal?
+  lockChangeFee   Decimal?
+  applicationFee  Decimal?
+  todaysDeposit   Decimal?
+  balanceDue      Decimal?
 
   applicantTemplateId String? // Envelope.secondaryId (type = TEMPLATE)
   cosignerTemplateId  String?

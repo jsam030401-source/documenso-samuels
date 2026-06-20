@@ -4,6 +4,17 @@ import { getTeamByUrl } from '@documenso/lib/server-only/team/get-team';
 import { DEAL_TERM_FIELDS, type DealTermKey } from '@documenso/lib/types/rental-deal-terms';
 import { trpc } from '@documenso/trpc/react';
 import { cn } from '@documenso/ui/lib/utils';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@documenso/ui/primitives/alert-dialog';
 import { Badge } from '@documenso/ui/primitives/badge';
 import { Button } from '@documenso/ui/primitives/button';
 import { Calendar } from '@documenso/ui/primitives/calendar';
@@ -24,6 +35,7 @@ import {
   Package,
   RefreshCw,
   Settings2,
+  Trash2,
   Upload,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -150,15 +162,127 @@ type Participant = {
   progress: { completed: number; total: number };
 };
 
+function ParticipantActions({
+  participant,
+  applicationId,
+  onChanged,
+}: {
+  participant: Participant;
+  applicationId: string;
+  onChanged: () => void;
+}) {
+  const { toast } = useToast();
+  const { mutateAsync: setStudent, isPending: isSettingStudent } = trpc.application.setParticipantStudent.useMutation();
+  const { mutateAsync: removeParticipant, isPending: isRemoving } = trpc.application.removeParticipant.useMutation();
+
+  const isApplicant = participant.role === 'APPLICANT';
+
+  const onChangeType = async (value: string) => {
+    try {
+      await setStudent({ applicationId, participantId: participant.id, isStudent: value === 'student' });
+      onChanged();
+      toast({
+        title: 'Type updated',
+        description:
+          value === 'student'
+            ? 'Marked as student — proof of income no longer required.'
+            : 'Marked as standard — proof of income required.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Could not update type',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const onRemove = async () => {
+    try {
+      const result = await removeParticipant({ applicationId, participantId: participant.id });
+      onChanged();
+      toast({
+        title: 'Removed',
+        description:
+          result.removed > 1
+            ? `Removed the applicant and ${result.removed - 1} co-signer(s).`
+            : `Removed ${participant.name}.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Could not remove',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      {isApplicant && (
+        <Select
+          value={participant.isStudent ? 'student' : 'standard'}
+          onValueChange={onChangeType}
+          disabled={isSettingStudent}
+        >
+          <SelectTrigger className="h-8 w-32 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="standard">Standard</SelectItem>
+            <SelectItem value="student">Student</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
+
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 text-destructive hover:text-destructive"
+            disabled={isRemoving}
+          >
+            <Trash2 className="size-4" />
+            Remove
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {participant.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {isApplicant
+                ? 'This removes the applicant and every co-signer linked to them — including their signing forms and uploaded documents. This cannot be undone.'
+                : 'This removes this co-signer, including their signing form and uploaded documents. This cannot be undone.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={onRemove}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 function ParticipantBlock({
   participant,
   teamUrl,
   applicationId,
+  onChanged,
   nested,
 }: {
   participant: Participant;
   teamUrl: string;
   applicationId: string;
+  onChanged: () => void;
   nested?: boolean;
 }) {
   const { progress } = participant;
@@ -166,7 +290,7 @@ function ParticipantBlock({
 
   return (
     <div className={nested ? 'mt-3 border-muted border-l-2 pl-4' : ''}>
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-start justify-between gap-2">
         <div>
           <p className="font-medium text-sm">
             {participant.name}{' '}
@@ -180,9 +304,12 @@ function ParticipantBlock({
             {participant.email} · {participant.phone}
           </p>
         </div>
-        <Badge variant={complete ? 'default' : 'neutral'}>
-          {progress.completed}/{progress.total} complete
-        </Badge>
+        <div className="flex flex-col items-end gap-2">
+          <Badge variant={complete ? 'default' : 'neutral'}>
+            {progress.completed}/{progress.total} complete
+          </Badge>
+          <ParticipantActions participant={participant} applicationId={applicationId} onChanged={onChanged} />
+        </div>
       </div>
 
       <div className="mt-2 space-y-1">
@@ -1069,13 +1196,19 @@ function ApplicationDetail({
           {applicants.map((applicant) => (
             <Card key={applicant.id}>
               <CardContent className="py-4">
-                <ParticipantBlock participant={applicant} teamUrl={teamUrl} applicationId={application.id} />
+                <ParticipantBlock
+                  participant={applicant}
+                  teamUrl={teamUrl}
+                  applicationId={application.id}
+                  onChanged={onChanged}
+                />
                 {cosignersFor(applicant.id).map((cosigner) => (
                   <ParticipantBlock
                     key={cosigner.id}
                     participant={cosigner}
                     teamUrl={teamUrl}
                     applicationId={application.id}
+                    onChanged={onChanged}
                     nested
                   />
                 ))}
@@ -1123,6 +1256,7 @@ function ApplicationDetail({
                     participant={cosigner}
                     teamUrl={teamUrl}
                     applicationId={application.id}
+                    onChanged={onChanged}
                   />
                 ))}
               </CardContent>

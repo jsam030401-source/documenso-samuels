@@ -5,7 +5,9 @@ import { findRentalApplications } from '@documenso/lib/server-only/rental/find-r
 import { generateApplicantPacket } from '@documenso/lib/server-only/rental/generate-applicant-packet';
 import { getRentalApplication } from '@documenso/lib/server-only/rental/get-rental-application';
 import { getTemplateFieldMap } from '@documenso/lib/server-only/rental/get-template-field-map';
+import { removeParticipant } from '@documenso/lib/server-only/rental/remove-participant';
 import { setApplicationTemplates } from '@documenso/lib/server-only/rental/set-application-templates';
+import { setParticipantStudent } from '@documenso/lib/server-only/rental/set-participant-student';
 import { setTemplateFieldMap } from '@documenso/lib/server-only/rental/set-template-field-map';
 import { updateApplicationTerms } from '@documenso/lib/server-only/rental/update-application-terms';
 import { getTeamById } from '@documenso/lib/server-only/team/get-team';
@@ -16,7 +18,9 @@ import {
   ZGenerateApplicantPacketRequestSchema,
   ZGetApplicationRequestSchema,
   ZGetTemplateFieldMapRequestSchema,
+  ZRemoveParticipantRequestSchema,
   ZSetApplicationTemplatesRequestSchema,
+  ZSetParticipantStudentRequestSchema,
   ZSetTemplateFieldMapRequestSchema,
   ZSyncApplicationFormsRequestSchema,
   ZUpdateApplicationTermsRequestSchema,
@@ -174,6 +178,39 @@ export const applicationRouter = router({
         teamId,
         templateEnvelopeId: input.templateEnvelopeId,
         mappings: input.mappings,
+      });
+    }),
+
+  /**
+   * @private
+   */
+  removeParticipant: authenticatedProcedure.input(ZRemoveParticipantRequestSchema).mutation(async ({ input, ctx }) => {
+    const { teamId, user } = ctx;
+
+    await getTeamById({ userId: user.id, teamId });
+
+    return await removeParticipant({
+      teamId,
+      applicationId: input.applicationId,
+      participantId: input.participantId,
+    });
+  }),
+
+  /**
+   * @private
+   */
+  setParticipantStudent: authenticatedProcedure
+    .input(ZSetParticipantStudentRequestSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { teamId, user } = ctx;
+
+      await getTeamById({ userId: user.id, teamId });
+
+      return await setParticipantStudent({
+        teamId,
+        applicationId: input.applicationId,
+        participantId: input.participantId,
+        isStudent: input.isStudent,
       });
     }),
 });

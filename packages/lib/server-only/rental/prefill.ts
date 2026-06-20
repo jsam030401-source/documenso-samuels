@@ -37,8 +37,18 @@ const normalizeLabel = (label: string | null | undefined) => (label ?? '').toLow
 const fmtMoney = (value: Prisma.Decimal | null) =>
   value === null ? undefined : Number(value).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
-const fmtDate = (value: Date | null) =>
-  value === null ? undefined : value.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+// Compact MM/DD/YYYY: the long "Month D, YYYY" form overflowed the broker's
+// narrow date fields and clipped the year off. This always fits and shows the year.
+const fmtDate = (value: Date | null) => {
+  if (value === null) {
+    return undefined;
+  }
+
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+
+  return `${month}/${day}/${value.getFullYear()}`;
+};
 
 /** Formatted value for each deal-term key (undefined = nothing entered yet). */
 const termValues = ({ application: a, participantNames }: PrefillContext): Record<DealTermKey, string | undefined> => ({

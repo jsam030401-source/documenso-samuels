@@ -82,3 +82,18 @@ export const ZSetTemplateFieldMapRequestSchema = z.object({
 });
 
 export type TSetTemplateFieldMapRequest = z.infer<typeof ZSetTemplateFieldMapRequestSchema>;
+
+export const ZRemoveParticipantRequestSchema = z.object({
+  applicationId: z.string(),
+  participantId: z.string(),
+});
+
+export type TRemoveParticipantRequest = z.infer<typeof ZRemoveParticipantRequestSchema>;
+
+export const ZSetParticipantStudentRequestSchema = z.object({
+  applicationId: z.string(),
+  participantId: z.string(),
+  isStudent: z.boolean(),
+});
+
+export type TSetParticipantStudentRequest = z.infer<typeof ZSetParticipantStudentRequestSchema>;

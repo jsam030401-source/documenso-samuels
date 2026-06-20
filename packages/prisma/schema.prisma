@@ -1334,6 +1334,7 @@ model RentalApplication {
   leaseStartDate  DateTime?
   leaseEndDate    DateTime?
   petsAllowed     Boolean?
+  firstMonthRent  Decimal?
   lastMonthRent   Decimal?
   securityDeposit Decimal?
   brokerFee       Decimal?
@@ -1405,4 +1406,23 @@ model ChecklistItem {
   createdAt DateTime @default(now())
 
   @@index([participantId])
+}
+
+// Maps a Documenso template's TEXT field -> a rental deal-term key, so the broker
+// can wire arbitrary template fields (e.g. "FMR", "SD") to the value that prefills
+// them. Keyed by template envelope id so one mapping is reused across applications.
+model RentalTemplateFieldMap {
+  id String @id @default(cuid())
+
+  teamId             Int
+  templateEnvelopeId String // Documenso Envelope id (type = TEMPLATE), scalar FK
+  fieldId            Int // Documenso Field id (scalar FK)
+  termKey            String // one of the DEAL_TERM_FIELDS keys
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([templateEnvelopeId, fieldId])
+  @@index([templateEnvelopeId])
+  @@index([teamId])
 }

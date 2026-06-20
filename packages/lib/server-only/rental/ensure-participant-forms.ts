@@ -7,7 +7,7 @@ import {
   RentalApplicationStatus,
   SigningStatus,
 } from '@prisma/client';
-
+import type { DealTermKey } from '../../types/rental-deal-terms';
 import type { ApiRequestMetadata } from '../../universal/extract-request-metadata';
 import { sendDocument } from '../document/send-document';
 import { createDocumentFromTemplate } from '../template/create-document-from-template';
@@ -64,6 +64,7 @@ export const ensureParticipantForms = async ({
           unitNumber: true,
           city: true,
           rent: true,
+          firstMonthRent: true,
           moveInDate: true,
           leaseTermMonths: true,
           leaseStartDate: true,
@@ -142,8 +143,9 @@ export const ensureParticipantForms = async ({
 
   const templateRecipientId = template.recipients[0].id;
 
-  // Prefill the deal terms + auto-derived co-tenant fields.
-  const [textFields, allParticipants] = await Promise.all([
+  // Prefill the deal terms + auto-derived co-tenant fields. The per-template field
+  // map (broker-configured) takes priority; unmapped fields fall back to label auto-match.
+  const [textFields, allParticipants, fieldMap] = await Promise.all([
     prisma.field.findMany({
       where: { envelopeId: templateEnvelopeId, type: FieldType.TEXT },
       select: { id: true, fieldMeta: true },
@@ -153,12 +155,19 @@ export const ensureParticipantForms = async ({
       select: { name: true },
       orderBy: { createdAt: 'asc' },
     }),
+    prisma.rentalTemplateFieldMap.findMany({
+      where: { templateEnvelopeId },
+      select: { fieldId: true, termKey: true },
+    }),
   ]);
 
-  const prefillFields = buildPrefillFields(textFields, {
-    application,
-    participantNames: allParticipants.map((entry) => entry.name),
-  });
+  const mapping = new Map(fieldMap.map((row) => [row.fieldId, row.termKey as DealTermKey]));
+
+  const prefillFields = buildPrefillFields(
+    textFields,
+    { application, participantNames: allParticipants.map((entry) => entry.name) },
+    mapping,
+  );
 
   const metadata = requestMetadata ?? internalRentalRequestMetadata();
 

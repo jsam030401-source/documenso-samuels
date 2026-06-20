@@ -11,6 +11,7 @@ export type UpdateApplicationTermsOptions = {
     unitNumber?: string | null;
     city?: string | null;
     rent?: number | null;
+    firstMonthRent?: number | null;
     moveInDate?: string | null;
     leaseTermMonths?: number | null;
     leaseStartDate?: string | null;
@@ -51,6 +52,7 @@ export const updateApplicationTerms = async ({ teamId, applicationId, data }: Up
       unitNumber: data.unitNumber,
       city: data.city,
       rent: data.rent,
+      firstMonthRent: data.firstMonthRent,
       moveInDate: toDate(data.moveInDate),
       leaseTermMonths: data.leaseTermMonths,
       leaseStartDate: toDate(data.leaseStartDate),

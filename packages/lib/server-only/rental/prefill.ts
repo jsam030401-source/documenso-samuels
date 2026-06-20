@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
 
 import type { TFieldMetaPrefillFieldsSchema } from '../../types/field-meta';
+import type { DealTermKey } from '../../types/rental-deal-terms';
 
 /**
  * The deal-terms subset of a RentalApplication used to fill signing forms, plus
@@ -12,6 +13,7 @@ export type PrefillContext = {
     unitNumber: string | null;
     city: string | null;
     rent: Prisma.Decimal | null;
+    firstMonthRent: Prisma.Decimal | null;
     moveInDate: Date | null;
     leaseTermMonths: number | null;
     leaseStartDate: Date | null;
@@ -38,60 +40,81 @@ const fmtMoney = (value: Prisma.Decimal | null) =>
 const fmtDate = (value: Date | null) =>
   value === null ? undefined : value.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
-/**
- * Map normalized template field labels to their value. Several aliases point to
- * the same value so the broker has some leeway in how they name the fields.
- */
-const buildMergeValues = ({
-  application: a,
-  participantNames,
-}: PrefillContext): Record<string, string | undefined> => ({
-  streetaddress: a.street ?? undefined,
+/** Formatted value for each deal-term key (undefined = nothing entered yet). */
+const termValues = ({ application: a, participantNames }: PrefillContext): Record<DealTermKey, string | undefined> => ({
   street: a.street ?? undefined,
-  address: a.street ?? undefined,
-  unitnumber: a.unitNumber ?? undefined,
-  unit: a.unitNumber ?? undefined,
+  unitNumber: a.unitNumber ?? undefined,
   city: a.city ?? undefined,
-  monthlyrent: fmtMoney(a.rent),
   rent: fmtMoney(a.rent),
-  firstmonthrent: fmtMoney(a.rent),
-  leaseterm: a.leaseTermMonths?.toString(),
-  leasetermmonths: a.leaseTermMonths?.toString(),
-  term: a.leaseTermMonths?.toString(),
-  leasestartdate: fmtDate(a.leaseStartDate),
-  leasestart: fmtDate(a.leaseStartDate),
-  leaseenddate: fmtDate(a.leaseEndDate),
-  leaseend: fmtDate(a.leaseEndDate),
-  moveindate: fmtDate(a.moveInDate),
-  pets: a.petsAllowed === null ? undefined : a.petsAllowed ? 'Yes' : 'No',
-  lastmonthrent: fmtMoney(a.lastMonthRent),
-  securitydeposit: fmtMoney(a.securityDeposit),
-  brokerfee: fmtMoney(a.brokerFee),
-  lockchangefee: fmtMoney(a.lockChangeFee),
-  applicationfee: fmtMoney(a.applicationFee),
-  todaysdeposit: fmtMoney(a.todaysDeposit),
-  balancedue: fmtMoney(a.balanceDue),
-  numberoftenants: participantNames.length ? String(participantNames.length) : undefined,
-  totaltenants: participantNames.length ? String(participantNames.length) : undefined,
-  cotenants: participantNames.length ? participantNames.join(', ') : undefined,
-  cotenantnames: participantNames.length ? participantNames.join(', ') : undefined,
+  firstMonthRent: fmtMoney(a.firstMonthRent),
+  leaseTermMonths: a.leaseTermMonths?.toString(),
+  leaseStartDate: fmtDate(a.leaseStartDate),
+  leaseEndDate: fmtDate(a.leaseEndDate),
+  moveInDate: fmtDate(a.moveInDate),
+  petsAllowed: a.petsAllowed === null ? undefined : a.petsAllowed ? 'Yes' : 'No',
+  lastMonthRent: fmtMoney(a.lastMonthRent),
+  securityDeposit: fmtMoney(a.securityDeposit),
+  brokerFee: fmtMoney(a.brokerFee),
+  lockChangeFee: fmtMoney(a.lockChangeFee),
+  applicationFee: fmtMoney(a.applicationFee),
+  todaysDeposit: fmtMoney(a.todaysDeposit),
+  balanceDue: fmtMoney(a.balanceDue),
+  tenantCount: participantNames.length ? String(participantNames.length) : undefined,
+  coTenants: participantNames.length ? participantNames.join(', ') : undefined,
 });
 
+/** Fallback auto-match: normalized field label -> term key (used when unmapped). */
+const LABEL_ALIASES: Record<string, DealTermKey> = {
+  streetaddress: 'street',
+  street: 'street',
+  address: 'street',
+  unitnumber: 'unitNumber',
+  unit: 'unitNumber',
+  city: 'city',
+  monthlyrent: 'rent',
+  rent: 'rent',
+  firstmonthrent: 'firstMonthRent',
+  leaseterm: 'leaseTermMonths',
+  leasetermmonths: 'leaseTermMonths',
+  term: 'leaseTermMonths',
+  months: 'leaseTermMonths',
+  leasestartdate: 'leaseStartDate',
+  leasestart: 'leaseStartDate',
+  leaseenddate: 'leaseEndDate',
+  leaseend: 'leaseEndDate',
+  moveindate: 'moveInDate',
+  pets: 'petsAllowed',
+  lastmonthrent: 'lastMonthRent',
+  securitydeposit: 'securityDeposit',
+  brokerfee: 'brokerFee',
+  lockchangefee: 'lockChangeFee',
+  applicationfee: 'applicationFee',
+  todaysdeposit: 'todaysDeposit',
+  balancedue: 'balanceDue',
+  numberoftenants: 'tenantCount',
+  totaltenants: 'tenantCount',
+  cotenants: 'coTenants',
+  cotenantnames: 'coTenants',
+};
+
 /**
- * Build `prefillFields` for `createDocumentFromTemplate` by matching each TEXT
- * template field's label against the deal terms. Only fields with a recognized
- * label and a present value are filled; everything else is left for the signer.
+ * Build `prefillFields` for `createDocumentFromTemplate`. For each TEXT field,
+ * the term is resolved by the explicit per-template mapping first, then by a
+ * label auto-match fallback. Only fields that resolve to a term with a present
+ * value get filled; the rest are left for the signer.
  */
 export const buildPrefillFields = (
   templateTextFields: TemplateTextField[],
   context: PrefillContext,
+  mapping: Map<number, DealTermKey> = new Map(),
 ): TFieldMetaPrefillFieldsSchema[] => {
-  const values = buildMergeValues(context);
+  const values = termValues(context);
 
   return templateTextFields
     .map((field) => {
-      const label = normalizeLabel((field.fieldMeta as { label?: string } | null)?.label);
-      const value = label ? values[label] : undefined;
+      const key =
+        mapping.get(field.id) ?? LABEL_ALIASES[normalizeLabel((field.fieldMeta as { label?: string } | null)?.label)];
+      const value = key ? values[key] : undefined;
 
       if (value === undefined) {
         return null;

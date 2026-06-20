@@ -155,7 +155,15 @@ export default function ApplicationsPage() {
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={moveInDate} onSelect={setMoveInDate} />
+                    <Calendar
+                      mode="single"
+                      selected={moveInDate}
+                      onSelect={setMoveInDate}
+                      defaultMonth={moveInDate}
+                      captionLayout="dropdown-buttons"
+                      fromYear={new Date().getFullYear() - 1}
+                      toYear={new Date().getFullYear() + 6}
+                    />
                   </PopoverContent>
                 </Popover>
               </div>

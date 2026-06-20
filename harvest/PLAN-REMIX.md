@@ -236,3 +236,20 @@ proof of deposit, then **Generate packet** → a stored merged PDF (signed forms
 co-signers folded in) downloaded per applicant, with skipped items surfaced. **Migration applied + not yet
 smoke-tested against a live DB/template** — needs a real one-signer Documenso TEMPLATE, then the
 end-to-end walk-through in the session report.
+
+## Post-Phase-2 status (2026-06-20) — see `session-reports/2026-06-20-rental-deal-terms-mapping-handoff.md`
+SHIPPED + DEPLOYED (live image `d2d94f5de596`): **deal terms + prefill + calendars + split address**, and a
+**`date-fns` prod-crash fix** (react-day-picker's peer dep was pruned by `npm ci --only=production` → boot
+crash once a rental route SSR'd the calendar; now declared as an `apps/remix` dep — **smoke-boot the image
+before deploying**).
+
+BUILT but NOT yet deployed (this branch, type-clean): **field-mapping FOUNDATION** (`RentalTemplateFieldMap`
+table + `DEAL_TERM_FIELDS` constants + `prefill.ts` mapping-first resolution + `ensureParticipantForms` loads
+it), **`firstMonthRent`** field, **computed balance due**, **calendar year dropdowns**. Two pending migrations:
+`add_rental_template_field_map`, `add_first_month_rent` (apply on next deploy).
+
+NEXT (handoff, priority order): (1) finish field-mapping **tRPC + UI** — the broker's template fields are
+shorthand (`FMR/LMR/App/SD/BF/Key/Today/Due/From/To/Months`) so label auto-match won't fill them; the
+explicit dropdown mapping is required. (2) rebuild + redeploy. (3) verify **read-only prefill renders in the
+SEALED PDF** (open question). (4) **multi-signer forms** — Jared wants them; currently blocked by single-signer
+enforcement; needs a foundational shared-envelope + recipient→participant design.

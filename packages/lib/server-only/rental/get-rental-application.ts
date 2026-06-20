@@ -114,6 +114,7 @@ export const getRentalApplication = async ({ id, teamId }: GetRentalApplicationO
       unitNumber: application.unitNumber,
       city: application.city,
       rent: money(application.rent),
+      firstMonthRent: money(application.firstMonthRent),
       moveInDate: application.moveInDate,
       leaseTermMonths: application.leaseTermMonths,
       leaseStartDate: application.leaseStartDate,

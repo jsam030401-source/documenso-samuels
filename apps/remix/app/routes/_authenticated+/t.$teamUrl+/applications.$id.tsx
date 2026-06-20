@@ -541,6 +541,7 @@ type ApplicationTerms = {
   unitNumber: string | null;
   city: string | null;
   rent: number | null;
+  firstMonthRent: number | null;
   moveInDate: Date | string | null;
   leaseTermMonths: number | null;
   leaseStartDate: Date | string | null;
@@ -564,6 +565,8 @@ function DatePickerField({
   value: Date | undefined;
   onChange: (value: Date | undefined) => void;
 }) {
+  const thisYear = new Date().getFullYear();
+
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -579,7 +582,15 @@ function DatePickerField({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
-        <Calendar mode="single" selected={value} onSelect={onChange} />
+        <Calendar
+          mode="single"
+          selected={value}
+          onSelect={onChange}
+          defaultMonth={value}
+          captionLayout="dropdown-buttons"
+          fromYear={thisYear - 1}
+          toYear={thisYear + 6}
+        />
       </PopoverContent>
     </Popover>
   );
@@ -632,13 +643,28 @@ function DealTermsCard({
   const [leaseStartDate, setLeaseStartDate] = useState<Date | undefined>(toDate(application.leaseStartDate));
   const [leaseEndDate, setLeaseEndDate] = useState<Date | undefined>(toDate(application.leaseEndDate));
   const [pets, setPets] = useState(application.petsAllowed === null ? 'unset' : application.petsAllowed ? 'yes' : 'no');
+  const [firstMonthRent, setFirstMonthRent] = useState(application.firstMonthRent?.toString() ?? '');
   const [lastMonthRent, setLastMonthRent] = useState(application.lastMonthRent?.toString() ?? '');
   const [securityDeposit, setSecurityDeposit] = useState(application.securityDeposit?.toString() ?? '');
   const [brokerFee, setBrokerFee] = useState(application.brokerFee?.toString() ?? '');
   const [lockChangeFee, setLockChangeFee] = useState(application.lockChangeFee?.toString() ?? '');
   const [applicationFee, setApplicationFee] = useState(application.applicationFee?.toString() ?? '');
   const [todaysDeposit, setTodaysDeposit] = useState(application.todaysDeposit?.toString() ?? '');
-  const [balanceDue, setBalanceDue] = useState(application.balanceDue?.toString() ?? '');
+
+  // Balance due is computed, not typed: (all charges) − today's deposit.
+  const amount = (value: string) => {
+    const parsed = Number(value);
+    return value.trim() !== '' && Number.isFinite(parsed) ? parsed : 0;
+  };
+  const totalDue =
+    amount(firstMonthRent) +
+    amount(lastMonthRent) +
+    amount(securityDeposit) +
+    amount(brokerFee) +
+    amount(lockChangeFee) +
+    amount(applicationFee);
+  const balanceDue = totalDue - amount(todaysDeposit);
+  const usd = (value: number) => value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
   const onSave = async () => {
     const money = (value: string) => {
@@ -658,6 +684,7 @@ function DealTermsCard({
         unitNumber: unitNumber.trim() || null,
         city: city.trim() || null,
         rent: money(rent),
+        firstMonthRent: money(firstMonthRent),
         moveInDate: isoDate(moveInDate),
         leaseTermMonths: term !== null && Number.isFinite(term) ? term : null,
         leaseStartDate: isoDate(leaseStartDate),
@@ -669,7 +696,7 @@ function DealTermsCard({
         lockChangeFee: money(lockChangeFee),
         applicationFee: money(applicationFee),
         todaysDeposit: money(todaysDeposit),
-        balanceDue: money(balanceDue),
+        balanceDue,
       });
 
       onChanged();
@@ -759,6 +786,12 @@ function DealTermsCard({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <MoneyField
+            id="terms-firstmonth"
+            label="First month's rent"
+            value={firstMonthRent}
+            onChange={setFirstMonthRent}
+          />
+          <MoneyField
             id="terms-lastmonth"
             label="Last month's rent"
             value={lastMonthRent}
@@ -774,7 +807,18 @@ function DealTermsCard({
           <MoneyField id="terms-lock" label="Lock-change fee" value={lockChangeFee} onChange={setLockChangeFee} />
           <MoneyField id="terms-appfee" label="Application fee" value={applicationFee} onChange={setApplicationFee} />
           <MoneyField id="terms-today" label="Today's deposit" value={todaysDeposit} onChange={setTodaysDeposit} />
-          <MoneyField id="terms-balance" label="Balance due" value={balanceDue} onChange={setBalanceDue} />
+        </div>
+
+        {/* Balance due is computed: all charges above − today's deposit. */}
+        <div className="space-y-1 rounded-md border bg-muted/30 p-3 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Total amount due</span>
+            <span className="font-medium">{usd(totalDue)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Balance due (total − today's deposit)</span>
+            <span className="font-medium">{usd(balanceDue)}</span>
+          </div>
         </div>
 
         <Button type="button" onClick={onSave} loading={isPending}>

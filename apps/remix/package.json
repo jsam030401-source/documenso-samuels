@@ -44,6 +44,7 @@
     "autoprefixer": "^10.4.22",
     "colord": "^2.9.3",
     "content-disposition": "^1.0.1",
+    "date-fns": "^3.6.0",
     "framer-motion": "^12.23.24",
     "heic2any": "^0.0.4",
     "hono": "^4.12.14",

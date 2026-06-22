@@ -33,6 +33,13 @@ type TemplateTextField = { id: number; fieldMeta: Prisma.JsonValue };
 
 const normalizeLabel = (label: string | null | undefined) => (label ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
+/**
+ * US date format (month/day/year) forced onto rental signing envelopes so Documenso's
+ * native DATE fields render `MM/DD/YYYY` instead of the day-first default. Matches the
+ * `MM/dd/yyyy` value our prefilled TEXT dates use.
+ */
+export const RENTAL_DOCUMENT_DATE_FORMAT = 'MM/dd/yyyy';
+
 // Whole dollars — rental amounts don't need cents (e.g. "$1,500", not "$1,500.00").
 const fmtMoney = (value: Prisma.Decimal | null) =>
   value === null

@@ -6,7 +6,7 @@ import type { DealTermKey } from '../../types/rental-deal-terms';
 import type { ApiRequestMetadata } from '../../universal/extract-request-metadata';
 import { sendDocument } from '../document/send-document';
 import { createDocumentFromTemplate } from '../template/create-document-from-template';
-import { buildPrefillFields } from './prefill';
+import { buildPrefillFields, RENTAL_DOCUMENT_DATE_FORMAT } from './prefill';
 import { internalRentalRequestMetadata } from './request-metadata';
 
 const CLOSED_STATUSES: RentalApplicationStatus[] = [
@@ -126,6 +126,7 @@ export const addParticipantDocument = async ({
     folderId: application.folderId ?? undefined,
     recipients: [{ id: templateRecipientId, name: participant.name, email: participant.email }],
     prefillFields,
+    override: { dateFormat: RENTAL_DOCUMENT_DATE_FORMAT },
     requestMetadata: metadata,
   });
 

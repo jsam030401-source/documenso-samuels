@@ -938,7 +938,6 @@ type ApplicationTerms = {
   firstMonthRent: number | null;
   moveInDate: Date | string | null;
   leaseTermMonths: number | null;
-  leaseStartDate: Date | string | null;
   leaseEndDate: Date | string | null;
   petsAllowed: boolean | null;
   lastMonthRent: number | null;
@@ -1034,7 +1033,6 @@ function DealTermsCard({
   const [rent, setRent] = useState(application.rent?.toString() ?? '');
   const [leaseTermMonths, setLeaseTermMonths] = useState(application.leaseTermMonths?.toString() ?? '');
   const [moveInDate, setMoveInDate] = useState<Date | undefined>(toDate(application.moveInDate));
-  const [leaseStartDate, setLeaseStartDate] = useState<Date | undefined>(toDate(application.leaseStartDate));
   const [leaseEndDate, setLeaseEndDate] = useState<Date | undefined>(toDate(application.leaseEndDate));
   const [pets, setPets] = useState(application.petsAllowed === null ? 'unset' : application.petsAllowed ? 'yes' : 'no');
   const [firstMonthRent, setFirstMonthRent] = useState(application.firstMonthRent?.toString() ?? '');
@@ -1081,7 +1079,6 @@ function DealTermsCard({
         firstMonthRent: money(firstMonthRent),
         moveInDate: isoDate(moveInDate),
         leaseTermMonths: term !== null && Number.isFinite(term) ? term : null,
-        leaseStartDate: isoDate(leaseStartDate),
         leaseEndDate: isoDate(leaseEndDate),
         petsAllowed: pets === 'unset' ? null : pets === 'yes',
         lastMonthRent: money(lastMonthRent),
@@ -1149,14 +1146,10 @@ function DealTermsCard({
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>Move-in date</Label>
             <DatePickerField value={moveInDate} onChange={setMoveInDate} />
-          </div>
-          <div className="space-y-2">
-            <Label>Lease start</Label>
-            <DatePickerField value={leaseStartDate} onChange={setLeaseStartDate} />
           </div>
           <div className="space-y-2">
             <Label>Lease end</Label>

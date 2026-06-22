@@ -10,7 +10,6 @@ export const DEAL_TERM_FIELDS = [
   { key: 'rent', label: 'Monthly rent' },
   { key: 'firstMonthRent', label: 'First month’s rent' },
   { key: 'leaseTermMonths', label: 'Lease term (months)' },
-  { key: 'leaseStartDate', label: 'Lease start date' },
   { key: 'leaseEndDate', label: 'Lease end date' },
   { key: 'moveInDate', label: 'Move-in date' },
   { key: 'petsAllowed', label: 'Pets (Yes / No)' },

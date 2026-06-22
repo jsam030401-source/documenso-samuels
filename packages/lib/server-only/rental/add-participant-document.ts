@@ -24,7 +24,6 @@ const DEAL_TERM_SELECT = {
   firstMonthRent: true,
   moveInDate: true,
   leaseTermMonths: true,
-  leaseStartDate: true,
   leaseEndDate: true,
   petsAllowed: true,
   lastMonthRent: true,

@@ -120,7 +120,6 @@ export const getRentalApplication = async ({ id, teamId }: GetRentalApplicationO
       firstMonthRent: money(application.firstMonthRent),
       moveInDate: application.moveInDate,
       leaseTermMonths: application.leaseTermMonths,
-      leaseStartDate: application.leaseStartDate,
       leaseEndDate: application.leaseEndDate,
       petsAllowed: application.petsAllowed,
       lastMonthRent: money(application.lastMonthRent),

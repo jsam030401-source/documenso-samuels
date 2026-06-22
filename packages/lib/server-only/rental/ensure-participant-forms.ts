@@ -67,7 +67,6 @@ export const ensureParticipantForms = async ({
           firstMonthRent: true,
           moveInDate: true,
           leaseTermMonths: true,
-          leaseStartDate: true,
           leaseEndDate: true,
           petsAllowed: true,
           lastMonthRent: true,

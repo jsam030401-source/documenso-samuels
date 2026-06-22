@@ -16,7 +16,6 @@ export type PrefillContext = {
     firstMonthRent: Prisma.Decimal | null;
     moveInDate: Date | null;
     leaseTermMonths: number | null;
-    leaseStartDate: Date | null;
     leaseEndDate: Date | null;
     petsAllowed: boolean | null;
     lastMonthRent: Prisma.Decimal | null;
@@ -58,7 +57,6 @@ const termValues = ({ application: a, participantNames }: PrefillContext): Recor
   rent: fmtMoney(a.rent),
   firstMonthRent: fmtMoney(a.firstMonthRent),
   leaseTermMonths: a.leaseTermMonths?.toString(),
-  leaseStartDate: fmtDate(a.leaseStartDate),
   leaseEndDate: fmtDate(a.leaseEndDate),
   moveInDate: fmtDate(a.moveInDate),
   petsAllowed: a.petsAllowed === null ? undefined : a.petsAllowed ? 'Yes' : 'No',
@@ -88,8 +86,9 @@ const LABEL_ALIASES: Record<string, DealTermKey> = {
   leasetermmonths: 'leaseTermMonths',
   term: 'leaseTermMonths',
   months: 'leaseTermMonths',
-  leasestartdate: 'leaseStartDate',
-  leasestart: 'leaseStartDate',
+  // Move-in date doubles as the lease start, so "lease start" labels resolve to it.
+  leasestartdate: 'moveInDate',
+  leasestart: 'moveInDate',
   leaseenddate: 'leaseEndDate',
   leaseend: 'leaseEndDate',
   moveindate: 'moveInDate',

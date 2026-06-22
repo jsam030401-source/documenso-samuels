@@ -50,7 +50,6 @@ export const ZUpdateApplicationTermsRequestSchema = z.object({
   firstMonthRent: z.number().nonnegative().nullish(),
   moveInDate: z.string().datetime().nullish(),
   leaseTermMonths: z.number().int().nonnegative().nullish(),
-  leaseStartDate: z.string().datetime().nullish(),
   leaseEndDate: z.string().datetime().nullish(),
   petsAllowed: z.boolean().nullish(),
   lastMonthRent: z.number().nonnegative().nullish(),

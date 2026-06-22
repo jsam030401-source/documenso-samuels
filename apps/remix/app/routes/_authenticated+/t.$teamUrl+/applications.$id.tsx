@@ -43,7 +43,6 @@ import {
   FilePlus,
   Loader2,
   Package,
-  RefreshCw,
   RotateCcw,
   Settings2,
   Trash2,
@@ -714,13 +713,22 @@ type TemplateOption = { envelopeId: string; title: string };
  * Per-template field → deal-term mapping editor. The broker's template fields are
  * personal shorthand (e.g. `FMR`, `BF`, `Key`) that label auto-match can't resolve,
  * so this is how prefill is told which field holds which deal term. Shown once per
- * attached (saved) template; saving only persists the mapping — the values land in
- * unsigned forms on the next "Generate / refresh forms".
+ * attached (saved) template; saving persists the mapping and pushes it into this
+ * application's unsigned forms.
  */
-function TemplateFieldMap({ templateEnvelopeId, roleLabel }: { templateEnvelopeId: string; roleLabel: string }) {
+function TemplateFieldMap({
+  applicationId,
+  templateEnvelopeId,
+  roleLabel,
+}: {
+  applicationId: string;
+  templateEnvelopeId: string;
+  roleLabel: string;
+}) {
   const { toast } = useToast();
   const { data, isLoading, refetch } = trpc.application.getTemplateFieldMap.useQuery({ templateEnvelopeId });
   const { mutateAsync: saveMap, isPending: isSaving } = trpc.application.setTemplateFieldMap.useMutation();
+  const { mutateAsync: syncForms, isPending: isSyncing } = trpc.application.syncApplicationForms.useMutation();
 
   const [selections, setSelections] = useState<Record<number, string>>({});
 
@@ -747,10 +755,9 @@ function TemplateFieldMap({ templateEnvelopeId, roleLabel }: { templateEnvelopeI
       });
 
       await refetch();
-      toast({
-        title: 'Field mapping saved',
-        description: 'Use “Generate / refresh forms” above to push it into unsigned forms.',
-      });
+      // Saving applies: push the mapping into this application's unsigned forms.
+      await syncForms({ applicationId });
+      toast({ title: 'Field mapping saved', description: 'Pushed into this application’s unsigned forms.' });
     } catch (error) {
       toast({
         title: 'Could not save mapping',
@@ -803,7 +810,7 @@ function TemplateFieldMap({ templateEnvelopeId, roleLabel }: { templateEnvelopeI
             ))}
           </div>
 
-          <Button type="button" size="sm" onClick={onSave} loading={isSaving}>
+          <Button type="button" size="sm" onClick={onSave} loading={isSaving || isSyncing}>
             Save field mapping
           </Button>
         </>
@@ -835,7 +842,6 @@ function SigningSetup({
   const [cosigner, setCosigner] = useState(cosignerTemplateId ?? NO_TEMPLATE);
 
   const { mutateAsync: setTemplates, isPending: isSaving } = trpc.application.setApplicationTemplates.useMutation();
-  const { mutateAsync: syncForms, isPending: isSyncing } = trpc.application.syncApplicationForms.useMutation();
 
   const onSave = async () => {
     try {
@@ -846,30 +852,14 @@ function SigningSetup({
       });
 
       onChanged();
-      toast({ title: 'Templates saved', description: 'New joiners get these forms automatically.' });
+      // Saving applies on the server: everyone's unsigned forms are (re)generated.
+      toast({ title: 'Saved', description: 'Templates saved and everyone’s forms updated.' });
     } catch (error) {
       toast({
         title: 'Could not save templates',
         description: error instanceof Error ? error.message : 'Please try again.',
         variant: 'destructive',
       });
-    }
-  };
-
-  const onSync = async () => {
-    try {
-      const result = await syncForms({ applicationId });
-
-      onChanged();
-      toast({
-        title: 'Forms synced',
-        description:
-          result.provisioned > 0
-            ? `Created ${result.provisioned} signing form${result.provisioned === 1 ? '' : 's'}.`
-            : 'Everyone already has their forms.',
-      });
-    } catch {
-      toast({ title: 'Could not sync forms', description: 'Please try again.', variant: 'destructive' });
     }
   };
 
@@ -912,9 +902,9 @@ function SigningSetup({
       <CardHeader>
         <CardTitle className="text-base">Signing forms</CardTitle>
         <CardDescription>
-          Attach a Documenso template (one signer — the tenant) per role. When someone joins, their form is created and
-          ready to sign in their portal — no email is sent. Use “Sync forms” to generate forms for people who joined
-          before a template was attached.
+          Attach a Documenso template (one signer — the tenant) per role. When someone joins, their form is ready to
+          sign in their portal — no email is sent. Saving regenerates everyone's unsigned forms automatically (signed
+          forms are left untouched).
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -937,11 +927,7 @@ function SigningSetup({
 
         <div className="flex items-center gap-2">
           <Button type="button" onClick={onSave} loading={isSaving}>
-            Save templates
-          </Button>
-          <Button type="button" variant="outline" onClick={onSync} loading={isSyncing}>
-            <RefreshCw className="size-4" />
-            Generate / refresh forms
+            Save
           </Button>
         </div>
 
@@ -965,6 +951,7 @@ function SigningSetup({
               {attachedTemplates.map((entry) => (
                 <TemplateFieldMap
                   key={entry.envelopeId}
+                  applicationId={applicationId}
                   templateEnvelopeId={entry.envelopeId}
                   roleLabel={entry.roleLabel}
                 />
@@ -1140,7 +1127,7 @@ function DealTermsCard({
       onChanged();
       toast({
         title: 'Deal terms saved',
-        description: 'Use "Generate / refresh forms" to push them into unsigned forms.',
+        description: 'Pushed into everyone’s unsigned forms automatically.',
       });
     } catch {
       toast({ title: 'Could not save terms', description: 'Please try again.', variant: 'destructive' });

@@ -99,12 +99,17 @@ export const applicationRouter = router({
 
       await getTeamById({ userId: user.id, teamId });
 
-      return await setApplicationTemplates({
+      const result = await setApplicationTemplates({
         teamId,
         applicationId: input.applicationId,
         applicantTemplateId: input.applicantTemplateId,
         cosignerTemplateId: input.cosignerTemplateId,
       });
+
+      // Saving applies: (re)generate everyone's unsigned forms with the new templates.
+      await ensureApplicationForms({ applicationId: input.applicationId, teamId, requestMetadata: ctx.metadata });
+
+      return result;
     }),
 
   /**
@@ -153,6 +158,9 @@ export const applicationRouter = router({
       await getTeamById({ userId: user.id, teamId });
 
       await updateApplicationTerms({ teamId, applicationId, data });
+
+      // Saving applies: push the new terms into everyone's unsigned forms.
+      await ensureApplicationForms({ applicationId, teamId, requestMetadata: ctx.metadata });
 
       return { success: true };
     }),

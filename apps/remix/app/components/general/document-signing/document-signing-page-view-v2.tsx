@@ -41,7 +41,7 @@ import { DocumentSigningMobileWidget } from './document-signing-mobile-widget';
 import { DocumentSigningRejectDialog } from './document-signing-reject-dialog';
 import { useRequiredEnvelopeSigningContext } from './envelope-signing-provider';
 
-export const DocumentSigningPageViewV2 = () => {
+export const DocumentSigningPageViewV2 = ({ returnUrl }: { returnUrl?: string } = {}) => {
   const { envelopeItems, currentEnvelopeItem, setCurrentEnvelopeItem } = useCurrentEnvelopeRender();
 
   const scrollableContainerRef = useRef<HTMLDivElement>(null);
@@ -224,7 +224,9 @@ export const DocumentSigningPageViewV2 = () => {
               {!isEmbed && (
                 <div className="px-4">
                   <Button asChild variant="ghost" className="w-full justify-start">
-                    <Link to="/">
+                    {/* Rental tenants have no account — send them back to their application
+                        portal instead of the app home (which bounces to the admin login). */}
+                    <Link to={returnUrl ?? '/'}>
                       <ArrowLeftIcon className="mr-2 h-4 w-4" />
                       <Trans>Return</Trans>
                     </Link>

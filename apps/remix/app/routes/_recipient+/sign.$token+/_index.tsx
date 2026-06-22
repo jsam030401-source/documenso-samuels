@@ -22,6 +22,7 @@ import { getNextPendingRecipient } from '@documenso/lib/server-only/recipient/ge
 import { getRecipientByToken } from '@documenso/lib/server-only/recipient/get-recipient-by-token';
 import { getRecipientSignatures } from '@documenso/lib/server-only/recipient/get-recipient-signatures';
 import { getRecipientsForAssistant } from '@documenso/lib/server-only/recipient/get-recipients-for-assistant';
+import { getApplicationSlugForRecipient } from '@documenso/lib/server-only/rental/get-application-slug-for-recipient';
 import { getTeamSettings } from '@documenso/lib/server-only/team/get-team-settings';
 import { getUserByEmail } from '@documenso/lib/server-only/user/get-user-by-email';
 import { DocumentAccessAuth } from '@documenso/lib/types/document-auth';
@@ -319,9 +320,16 @@ const handleV2Loader = async ({ params, request }: Route.LoaderArgs) => {
     }
   }
 
+  // Rental tenants have no account — send the in-page "Return" link to their portal
+  // (not the app home, which bounces to the admin login).
+  const rentalReturnUrl = await getApplicationSlugForRecipient(recipient.id)
+    .then((slug) => (slug ? `/a/${slug}` : null))
+    .catch(() => null);
+
   return {
     isDocumentAccessValid: true,
     envelopeForSigning,
+    rentalReturnUrl,
   } as const;
 };
 
@@ -579,7 +587,7 @@ const SigningPageV2 = ({ data }: { data: Awaited<ReturnType<typeof handleV2Loade
           envelopeItems={envelope.envelopeItems}
           token={recipient.token}
         >
-          <DocumentSigningPageViewV2 />
+          <DocumentSigningPageViewV2 returnUrl={data.rentalReturnUrl ?? undefined} />
         </EnvelopeRenderProvider>
       </DocumentSigningAuthProvider>
     </EnvelopeSigningProvider>

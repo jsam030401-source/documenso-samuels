@@ -44,6 +44,7 @@ import {
   Loader2,
   Package,
   RefreshCw,
+  RotateCcw,
   Settings2,
   Trash2,
   Upload,
@@ -275,8 +276,24 @@ function ParticipantActions({
   const { toast } = useToast();
   const { mutateAsync: setStudent, isPending: isSettingStudent } = trpc.application.setParticipantStudent.useMutation();
   const { mutateAsync: removeParticipant, isPending: isRemoving } = trpc.application.removeParticipant.useMutation();
+  const { mutateAsync: reissueForm, isPending: isReissuing } = trpc.application.reissueParticipantForm.useMutation();
 
   const isApplicant = participant.role === 'APPLICANT';
+  const hasSignedForm = participant.forms.some((form) => form.signed);
+
+  const onReissue = async () => {
+    try {
+      await reissueForm({ applicationId, participantId: participant.id });
+      onChanged();
+      toast({ title: 'Form re-issued', description: 'A fresh, unsigned copy is back in their portal to sign.' });
+    } catch (error) {
+      toast({
+        title: 'Could not re-issue form',
+        description: error instanceof Error ? error.message : 'Please try again.',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const onChangeType = async (value: string) => {
     try {
@@ -337,6 +354,36 @@ function ParticipantActions({
       )}
 
       <AddDocumentButton applicationId={applicationId} participantId={participant.id} onChanged={onChanged} />
+
+      {hasSignedForm && (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-muted-foreground"
+              disabled={isReissuing}
+            >
+              <RotateCcw className="size-4" />
+              Re-issue form
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Re-issue {participant.name}'s form?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This voids their current signed application form and sends a fresh, prefilled copy for them to sign
+                again. Their uploaded documents and any added documents are kept. This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={onReissue}>Re-issue</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
 
       <AlertDialog>
         <AlertDialogTrigger asChild>

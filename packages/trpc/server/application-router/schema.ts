@@ -104,3 +104,10 @@ export const ZAddParticipantDocumentRequestSchema = z.object({
 });
 
 export type TAddParticipantDocumentRequest = z.infer<typeof ZAddParticipantDocumentRequestSchema>;
+
+export const ZReissueParticipantFormRequestSchema = z.object({
+  applicationId: z.string(),
+  participantId: z.string(),
+});
+
+export type TReissueParticipantFormRequest = z.infer<typeof ZReissueParticipantFormRequestSchema>;

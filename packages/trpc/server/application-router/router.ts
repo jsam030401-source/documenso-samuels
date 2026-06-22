@@ -6,6 +6,7 @@ import { findRentalApplications } from '@documenso/lib/server-only/rental/find-r
 import { generateApplicantPacket } from '@documenso/lib/server-only/rental/generate-applicant-packet';
 import { getRentalApplication } from '@documenso/lib/server-only/rental/get-rental-application';
 import { getTemplateFieldMap } from '@documenso/lib/server-only/rental/get-template-field-map';
+import { reissueParticipantForm } from '@documenso/lib/server-only/rental/reissue-participant-form';
 import { removeParticipant } from '@documenso/lib/server-only/rental/remove-participant';
 import { setApplicationTemplates } from '@documenso/lib/server-only/rental/set-application-templates';
 import { setParticipantStudent } from '@documenso/lib/server-only/rental/set-participant-student';
@@ -20,6 +21,7 @@ import {
   ZGenerateApplicantPacketRequestSchema,
   ZGetApplicationRequestSchema,
   ZGetTemplateFieldMapRequestSchema,
+  ZReissueParticipantFormRequestSchema,
   ZRemoveParticipantRequestSchema,
   ZSetApplicationTemplatesRequestSchema,
   ZSetParticipantStudentRequestSchema,
@@ -231,6 +233,23 @@ export const applicationRouter = router({
         applicationId: input.applicationId,
         participantId: input.participantId,
         templateEnvelopeId: input.templateEnvelopeId,
+      });
+    }),
+
+  /**
+   * @private
+   */
+  reissueParticipantForm: authenticatedProcedure
+    .input(ZReissueParticipantFormRequestSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { teamId, user } = ctx;
+
+      await getTeamById({ userId: user.id, teamId });
+
+      return await reissueParticipantForm({
+        teamId,
+        applicationId: input.applicationId,
+        participantId: input.participantId,
       });
     }),
 });

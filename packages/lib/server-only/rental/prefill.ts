@@ -33,8 +33,16 @@ type TemplateTextField = { id: number; fieldMeta: Prisma.JsonValue };
 
 const normalizeLabel = (label: string | null | undefined) => (label ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
+// Whole dollars — rental amounts don't need cents (e.g. "$1,500", not "$1,500.00").
 const fmtMoney = (value: Prisma.Decimal | null) =>
-  value === null ? undefined : Number(value).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  value === null
+    ? undefined
+    : Number(value).toLocaleString('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      });
 
 // Compact MM/DD/YYYY: the long "Month D, YYYY" form overflowed the broker's
 // narrow date fields and clipped the year off. This always fits and shows the year.

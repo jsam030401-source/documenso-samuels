@@ -1090,7 +1090,13 @@ function DealTermsCard({
     amount(lockChangeFee) +
     amount(applicationFee);
   const balanceDue = totalDue - amount(todaysDeposit);
-  const usd = (value: number) => value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  const usd = (value: number) =>
+    value.toLocaleString('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    });
 
   const onSave = async () => {
     const money = (value: string) => {

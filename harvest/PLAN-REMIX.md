@@ -252,12 +252,18 @@ prefilled TEXT values render in the SEALED PDF. Deployed + live-verified; `feat/
 fast-forwarded into `main` and deleted. Migrations `add_rental_template_field_map` + `add_first_month_rent`
 applied on the live DB.
 
+## 2026-06-22 — two feature branches off `main`, neither merged yet (see `session-reports/2026-06-22-*.md`)
+- **`feat/rental-additional-documents`** (DEPLOYED, Jared testing): add-extra-documents-on-demand, dropped
+  redundant Lease-start date, re-issue a signed form, **saving auto-applies** (no more Generate/refresh
+  button), whole-dollar amounts (no cents), **US `MM/dd/yyyy` date format** on envelopes (Documenso DATE
+  fields were day-first), and signing-page **Return → tenant portal** (not admin login).
+- **`feat/rental-phase-3-multi-signer`** (BUILT, PARKED): shared multi-signer roommate signing — one doc all
+  applicant roommates sign (parallel, up to 6 slots), opt-in per app. Not tested. Needs a rebase + the
+  leaseStartDate-removal and date-format-override applied before testing.
+
 NEXT (priority order):
-1. **Multi-signer forms** ("Phase 3", the big one) — Jared wants one document several people sign. Currently
-   blocked by single-signer enforcement (one envelope per participant). True multi-signer = one shared
-   envelope whose recipients map to different participants (PADS' `template_instance_signers` model); a
-   foundational change to provisioning + recipient→participant assignment. Design as its own effort.
-2. **Date-field type check** — the compact-date fix only touches TEXT fields we prefill. If any broker date
-   fields are Documenso **DATE-type** (not prefilled by us), the year fix won't reach them — handle separately
-   if the year is still missing after the rebuild.
-3. **Further PADS-parity gaps** as they surface during Jared's testing (remove + edit-type came from exactly that).
+1. **Finish testing + merge `feat/rental-additional-documents` → `main`**, then delete the branch. (Immediate.)
+2. **Un-park Phase 3** when Jared wants multi-signer: rebase onto merged `main`, apply the leaseStartDate
+   removal + `override.dateFormat = RENTAL_DOCUMENT_DATE_FORMAT` to its shared provisioner, build a 1–6
+   tenant-slot template (deal-term fields on Tenant 1), then test.
+3. **Further PADS-parity gaps / UX** as they surface (e.g. collapse the per-person action row into a "⋯" menu).
